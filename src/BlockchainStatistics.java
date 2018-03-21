@@ -141,6 +141,43 @@ public class BlockchainStatistics {
     }
     
     /**
+     * Ottiene la versione del compilatore Solidity utilizzata e la memorizza su file
+     * @param url			url pagine contenenti i contratti
+     * @throws Exception
+     */
+    public void getCompilerVersion(String url) throws Exception {
+    	 URL website = new URL(url);
+         URLConnection connection = website.openConnection();
+         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+         connection.connect();
+         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        
+        FileOutputStream output = new FileOutputStream("CompilerVersion.txt", true);
+		PrintStream write = new PrintStream(output);
+        String inputLine;
+        boolean compiler = false;
+        boolean version = false;
+        int i = 0;
+        while ((inputLine = in.readLine()) != null) {
+            	if (inputLine.contains("solidity") == true) {
+            		compiler=true;
+            		i = 0;
+            	}
+            	i++;
+            	if(inputLine.contains("version") == true && compiler == true) {
+            		version = true;
+            	}
+            	if(version == true  && i==11) {
+            		if(inputLine.contains("v") == false) {
+            			write.println("Compiler Solidity version:"+ inputLine.substring(1, 7));
+            		}
+            	}
+        }  
+        in.close();
+        write.close();
+		
+    }
+    /**
      * Ottiene gli Opcode tramite il codice sorgente di ogni pagina dei contratti
      * e li memorizza su file
      * @param url		url del contratto
@@ -488,7 +525,6 @@ public class BlockchainStatistics {
     	BlockchainStatistics ss = new BlockchainStatistics();
     	// Crea la lista degli indirizzi
     	int index = Integer.parseInt(getPages());
-    	System.out.println(index);
     	  for(int i=1; i<=index; i++) {
     		if(i==1) {
     			ss.getAddresses("https://etherscan.io/txs");
@@ -497,12 +533,13 @@ public class BlockchainStatistics {
     			ss.getAddresses("https://etherscan.io/txs?p="+i);
     		}
     	}
-    	// Ottiene gli opcode 
+    	// Ottiene gli opcode e la versione del compilatore
     	File file = new File("Addresses.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	    String line;
     	    while ((line = br.readLine()) != null) {
     	    	ss.getOpcode("https://etherscan.io/address/"+line+"#code");
+    	    	ss.getCompilerVersion("https://etherscan.io/address/"+line+"#code");
     	    }
     	// Analizza gli opcode
     	ss.statistics();
