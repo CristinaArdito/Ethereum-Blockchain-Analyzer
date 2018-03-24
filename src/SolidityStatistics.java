@@ -374,7 +374,7 @@ public class SolidityStatistics {
      * @throws Exception
      */
     public void writeResults() throws Exception {
-        FileOutputStream output = new FileOutputStream("Results.txt", true);
+        FileOutputStream output = new FileOutputStream("ContractVerifiedResults.txt", true);
 		PrintStream write = new PrintStream(output);
 		write.println("Opcode results: ");
 		write.println("add: "+ this.add);
