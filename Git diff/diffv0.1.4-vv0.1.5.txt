@@ -1,0 +1,3092 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 77afcf3e..d1ab1bf6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,7 +8,7 @@ include(EthPolicy)
+ eth_policy()
+ 
+ # project name and version should be set after cmake_policy CMP0048
+-set(PROJECT_VERSION "0.1.4")
++set(PROJECT_VERSION "0.1.5")
+ project(solidity VERSION ${PROJECT_VERSION})
+ 
+ # Let's find our dependencies
+diff --git a/README.md b/README.md
+index a22dc6a1..cd6b48de 100644
+--- a/README.md
++++ b/README.md
+@@ -1,10 +1,10 @@
+ # The Solidity Contract-Oriented Programming Language
+-
++[![Join the chat at https://gitter.im/ethereum/solidity](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/ethereum/solidity?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+ ## Useful links
+ 
+ To get started you can find a basic introduction to the language in [Solidity Tutorial](https://github.com/ethereum/wiki/wiki/Solidity-Tutorial).
+ 
+-You can start using [Solidity in your browser](https://chriseth.github.io/browser-solidity/) with no need to download or compile anything. This application only supports compilation - if you want to inject it into the blockchain, you have to use a client like [Geth](https://github.com/ethereum/go-ethereum/wiki) or [AlethZero](https://github.com/ethereum/cpp-ethereum/wiki/Using-AlethZero).
++You can start using [Solidity in your browser](https://chriseth.github.io/browser-solidity/) with no need to download or compile anything. This application only supports compilation - if you want to inject it into the blockchain, you have to use a client like [Geth](https://github.com/ethereum/go-ethereum/wiki) or [AlethZero](https://github.com/ethereum/alethzero).
+ 
+ Also check out more documentations for [Solidity ABI](https://github.com/ethereum/wiki/wiki/Solidity,-Docs-and-ABI) and a crowdfunding [example contract](https://github.com/chriseth/cpp-ethereum/wiki/Crowdfunding-example-contract-in-Solidity) written in Solidity.
+ 
+@@ -16,7 +16,7 @@ Solidity is still under development. So please do not hesitate and open an [issu
+ 
+ ## Building
+ 
+-See the [Wiki](https://github.com/ethereum/cpp-ethereum/wiki) for build instructions, compatibility information and build tips. 
++See the [Wiki](https://github.com/ethereum/webthree-umbrella/wiki) for build instructions, compatibility information and build tips. 
+ 
+ ## How to Contribute
+ 
+@@ -32,4 +32,4 @@ Please add yourself in the `@author` doxygen  section of the file your are addin
+ with the same wording as the one you listed yourself in the external contributors section above,
+ only replacing the word **contribution** by **file**
+ 
+-Please read [CodingStandards.txt](CodingStandards.txt) thoroughly before making alterations to the code base. Please do *NOT* use an editor that automatically reformats whitespace away from astylerc or the formatting guidelines as described in [CodingStandards.txt](CodingStandards.txt).
++Please read [CodingStandards.txt](https://github.com/ethereum/webthree-umbrella/blob/develop/CodingStandards.txt) thoroughly before making alterations to the code base. Please do *NOT* use an editor that automatically reformats whitespace away from astylerc or the formatting guidelines as described in [CodingStandards.txt](https://github.com/ethereum/webthree-umbrella/blob/develop/CodingStandards.txt).
+diff --git a/libsolidity/AST.cpp b/libsolidity/AST.cpp
+index 00b51c42..d55bc13c 100644
+--- a/libsolidity/AST.cpp
++++ b/libsolidity/AST.cpp
+@@ -135,7 +135,7 @@ vector<pair<FixedHash<4>, FunctionTypePointer>> const& ContractDefinition::inter
+ 					FunctionType ftype(*v);
+ 					solAssert(!!v->annotation().type.get(), "");
+ 					functionsSeen.insert(v->name());
+-					FixedHash<4> hash(dev::sha3(ftype.externalSignature(v->name())));
++					FixedHash<4> hash(dev::sha3(ftype.externalSignature()));
+ 					m_interfaceFunctionList->push_back(make_pair(hash, make_shared<FunctionType>(*v)));
+ 				}
+ 		}
+@@ -215,6 +215,13 @@ TypePointer StructDefinition::type(ContractDefinition const*) const
+ 	return make_shared<TypeType>(make_shared<StructType>(*this));
+ }
+ 
++TypeDeclarationAnnotation& StructDefinition::annotation() const
++{
++	if (!m_annotation)
++		m_annotation = new TypeDeclarationAnnotation();
++	return static_cast<TypeDeclarationAnnotation&>(*m_annotation);
++}
++
+ TypePointer EnumValue::type(ContractDefinition const*) const
+ {
+ 	auto parentDef = dynamic_cast<EnumDefinition const*>(scope());
+@@ -227,6 +234,13 @@ TypePointer EnumDefinition::type(ContractDefinition const*) const
+ 	return make_shared<TypeType>(make_shared<EnumType>(*this));
+ }
+ 
++TypeDeclarationAnnotation& EnumDefinition::annotation() const
++{
++	if (!m_annotation)
++		m_annotation = new TypeDeclarationAnnotation();
++	return static_cast<TypeDeclarationAnnotation&>(*m_annotation);
++}
++
+ TypePointer FunctionDefinition::type(ContractDefinition const*) const
+ {
+ 	return make_shared<FunctionType>(*this);
+@@ -234,7 +248,7 @@ TypePointer FunctionDefinition::type(ContractDefinition const*) const
+ 
+ string FunctionDefinition::externalSignature() const
+ {
+-	return FunctionType(*this).externalSignature(name());
++	return FunctionType(*this).externalSignature();
+ }
+ 
+ TypePointer ModifierDefinition::type(ContractDefinition const*) const
+diff --git a/libsolidity/AST.h b/libsolidity/AST.h
+index c7eaa41d..075c1ff5 100644
+--- a/libsolidity/AST.h
++++ b/libsolidity/AST.h
+@@ -352,6 +352,8 @@ public:
+ 
+ 	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
+ 
++	virtual TypeDeclarationAnnotation& annotation() const override;
++
+ private:
+ 	std::vector<ASTPointer<VariableDeclaration>> m_members;
+ };
+@@ -372,6 +374,8 @@ public:
+ 
+ 	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
+ 
++	virtual TypeDeclarationAnnotation& annotation() const override;
++
+ private:
+ 	std::vector<ASTPointer<EnumValue>> m_members;
+ };
+@@ -708,17 +712,17 @@ private:
+ class UserDefinedTypeName: public TypeName
+ {
+ public:
+-	UserDefinedTypeName(SourceLocation const& _location, ASTPointer<ASTString> const& _name):
+-		TypeName(_location), m_name(_name) {}
++	UserDefinedTypeName(SourceLocation const& _location, std::vector<ASTString> const& _namePath):
++		TypeName(_location), m_namePath(_namePath) {}
+ 	virtual void accept(ASTVisitor& _visitor) override;
+ 	virtual void accept(ASTConstVisitor& _visitor) const override;
+ 
+-	ASTString const& name() const { return *m_name; }
++	std::vector<ASTString> const& namePath() const { return m_namePath; }
+ 
+ 	virtual UserDefinedTypeNameAnnotation& annotation() const override;
+ 
+ private:
+-	ASTPointer<ASTString> m_name;
++	std::vector<ASTString> m_namePath;
+ };
+ 
+ /**
+diff --git a/libsolidity/ASTAnnotations.h b/libsolidity/ASTAnnotations.h
+index 195f11c8..be9b164c 100644
+--- a/libsolidity/ASTAnnotations.h
++++ b/libsolidity/ASTAnnotations.h
+@@ -25,6 +25,7 @@
+ #include <map>
+ #include <memory>
+ #include <vector>
++#include <set>
+ #include <libsolidity/ASTForward.h>
+ 
+ namespace dev
+@@ -40,13 +41,22 @@ struct ASTAnnotation
+ 	virtual ~ASTAnnotation() {}
+ };
+ 
+-struct ContractDefinitionAnnotation: ASTAnnotation
++struct TypeDeclarationAnnotation: ASTAnnotation
++{
++	/// The name of this type, prefixed by proper namespaces if globally accessible.
++	std::string canonicalName;
++};
++
++struct ContractDefinitionAnnotation: TypeDeclarationAnnotation
+ {
+ 	/// Whether all functions are implemented.
+ 	bool isFullyImplemented = true;
+ 	/// List of all (direct and indirect) base contracts in order from derived to
+ 	/// base, including the contract itself.
+ 	std::vector<ContractDefinition const*> linearizedBaseContracts;
++	/// List of contracts this contract creates, i.e. which need to be compiled first.
++	/// Also includes all contracts from @a linearizedBaseContracts.
++	std::set<ContractDefinition const*> contractDependencies;
+ };
+ 
+ struct VariableDeclarationAnnotation: ASTAnnotation
+diff --git a/libsolidity/ASTJsonConverter.cpp b/libsolidity/ASTJsonConverter.cpp
+index d0f76fb8..4c14f2b2 100644
+--- a/libsolidity/ASTJsonConverter.cpp
++++ b/libsolidity/ASTJsonConverter.cpp
+@@ -21,6 +21,7 @@
+  */
+ 
+ #include <libsolidity/ASTJsonConverter.h>
++#include <boost/algorithm/string/join.hpp>
+ #include <libsolidity/AST.h>
+ 
+ using namespace std;
+@@ -144,7 +145,9 @@ bool ASTJsonConverter::visit(ElementaryTypeName const& _node)
+ 
+ bool ASTJsonConverter::visit(UserDefinedTypeName const& _node)
+ {
+-	addJsonNode("UserDefinedTypeName", { make_pair("name", _node.name()) });
++	addJsonNode("UserDefinedTypeName", {
++		make_pair("name", boost::algorithm::join(_node.namePath(), "."))
++	});
+ 	return true;
+ }
+ 
+diff --git a/libsolidity/ASTPrinter.cpp b/libsolidity/ASTPrinter.cpp
+index cebf6b8b..534f7c78 100644
+--- a/libsolidity/ASTPrinter.cpp
++++ b/libsolidity/ASTPrinter.cpp
+@@ -21,6 +21,7 @@
+  */
+ 
+ #include <libsolidity/ASTPrinter.h>
++#include <boost/algorithm/string/join.hpp>
+ #include <libsolidity/AST.h>
+ 
+ using namespace std;
+@@ -151,7 +152,7 @@ bool ASTPrinter::visit(ElementaryTypeName const& _node)
+ 
+ bool ASTPrinter::visit(UserDefinedTypeName const& _node)
+ {
+-	writeLine("UserDefinedTypeName \"" + _node.name() + "\"");
++	writeLine("UserDefinedTypeName \"" + boost::algorithm::join(_node.namePath(), ".") + "\"");
+ 	printSourcePart(_node);
+ 	return goDeeper();
+ }
+diff --git a/libsolidity/ArrayUtils.cpp b/libsolidity/ArrayUtils.cpp
+index 32dde8a5..1999eb77 100644
+--- a/libsolidity/ArrayUtils.cpp
++++ b/libsolidity/ArrayUtils.cpp
+@@ -76,7 +76,9 @@ void ArrayUtils::copyArrayToStorage(ArrayType const& _targetType, ArrayType cons
+ 	// stack: target_ref source_ref source_length target_ref target_length
+ 	if (_targetType.isDynamicallySized())
+ 		// store new target length
+-		m_context << eth::Instruction::DUP3 << eth::Instruction::DUP3 << eth::Instruction::SSTORE;
++		if (!_targetType.isByteArray())
++			// Otherwise, length will be stored below.
++			m_context << eth::Instruction::DUP3 << eth::Instruction::DUP3 << eth::Instruction::SSTORE;
+ 	if (sourceBaseType->category() == Type::Category::Mapping)
+ 	{
+ 		solAssert(targetBaseType->category() == Type::Category::Mapping, "");
+@@ -87,6 +89,7 @@ void ArrayUtils::copyArrayToStorage(ArrayType const& _targetType, ArrayType cons
+ 			<< eth::Instruction::POP << eth::Instruction::POP;
+ 		return;
+ 	}
++	// stack: target_ref source_ref source_length target_ref target_length
+ 	// compute hashes (data positions)
+ 	m_context << eth::Instruction::SWAP1;
+ 	if (_targetType.isDynamicallySized())
+@@ -98,9 +101,46 @@ void ArrayUtils::copyArrayToStorage(ArrayType const& _targetType, ArrayType cons
+ 	// stack: target_ref source_ref source_length target_data_pos target_data_end
+ 	m_context << eth::Instruction::SWAP3;
+ 	// stack: target_ref target_data_end source_length target_data_pos source_ref
++
++	eth::AssemblyItem copyLoopEndWithoutByteOffset = m_context.newTag();
++
++	// special case for short byte arrays: Store them together with their length.
++	if (_targetType.isByteArray())
++	{
++		// stack: target_ref target_data_end source_length target_data_pos source_ref
++		m_context << eth::Instruction::DUP3 << u256(31) << eth::Instruction::LT;
++		eth::AssemblyItem longByteArray = m_context.appendConditionalJump();
++		// store the short byte array
++		solAssert(_sourceType.isByteArray(), "");
++		if (_sourceType.location() == DataLocation::Storage)
++		{
++			// just copy the slot, it contains length and data
++			m_context << eth::Instruction::DUP1 << eth::Instruction::SLOAD;
++			m_context << eth::Instruction::DUP6 << eth::Instruction::SSTORE;
++		}
++		else
++		{
++			m_context << eth::Instruction::DUP1;
++			CompilerUtils(m_context).loadFromMemoryDynamic(*sourceBaseType, fromCalldata, true, false);
++			// stack: target_ref target_data_end source_length target_data_pos source_ref value
++			// clear the lower-order byte - which will hold the length
++			m_context << u256(0xff) << eth::Instruction::NOT << eth::Instruction::AND;
++			// fetch the length and shift it left by one
++			m_context << eth::Instruction::DUP4 << eth::Instruction::DUP1 << eth::Instruction::ADD;
++			// combine value and length and store them
++			m_context << eth::Instruction::OR << eth::Instruction::DUP6 << eth::Instruction::SSTORE;
++		}
++		// end of special case, jump right into cleaning target data area
++		m_context.appendJumpTo(copyLoopEndWithoutByteOffset);
++		m_context << longByteArray;
++		// Store length (2*length+1)
++		m_context << eth::Instruction::DUP3 << eth::Instruction::DUP1 << eth::Instruction::ADD;
++		m_context << u256(1) << eth::Instruction::ADD;
++		m_context << eth::Instruction::DUP6 << eth::Instruction::SSTORE;
++	}
++
+ 	// skip copying if source length is zero
+ 	m_context << eth::Instruction::DUP3 << eth::Instruction::ISZERO;
+-	eth::AssemblyItem copyLoopEndWithoutByteOffset = m_context.newTag();
+ 	m_context.appendConditionalJumpTo(copyLoopEndWithoutByteOffset);
+ 
+ 	if (_sourceType.location() == DataLocation::Storage && _sourceType.isDynamicallySized())
+@@ -121,8 +161,7 @@ void ArrayUtils::copyArrayToStorage(ArrayType const& _targetType, ArrayType cons
+ 	m_context
+ 		<< eth::dupInstruction(3 + byteOffsetSize) << eth::dupInstruction(2 + byteOffsetSize)
+ 		<< eth::Instruction::GT << eth::Instruction::ISZERO;
+-	eth::AssemblyItem copyLoopEnd = m_context.newTag();
+-	m_context.appendConditionalJumpTo(copyLoopEnd);
++	eth::AssemblyItem copyLoopEnd = m_context.appendConditionalJump();
+ 	// stack: target_ref target_data_end source_data_pos target_data_pos source_data_end [target_byte_offset] [source_byte_offset]
+ 	// copy
+ 	if (sourceBaseType->category() == Type::Category::Array)
+@@ -229,7 +268,7 @@ void ArrayUtils::copyArrayToStorage(ArrayType const& _targetType, ArrayType cons
+ 	m_context << eth::Instruction::POP;
+ }
+ 
+-void ArrayUtils::copyArrayToMemory(const ArrayType& _sourceType, bool _padToWordBoundaries) const
++void ArrayUtils::copyArrayToMemory(ArrayType const& _sourceType, bool _padToWordBoundaries) const
+ {
+ 	solAssert(
+ 		_sourceType.baseType()->calldataEncodedSize() > 0,
+@@ -360,8 +399,30 @@ void ArrayUtils::copyArrayToMemory(const ArrayType& _sourceType, bool _padToWord
+ 		// stack here: memory_offset storage_offset length
+ 		// jump to end if length is zero
+ 		m_context << eth::Instruction::DUP1 << eth::Instruction::ISZERO;
+-		eth::AssemblyItem loopEnd = m_context.newTag();
+-		m_context.appendConditionalJumpTo(loopEnd);
++		eth::AssemblyItem loopEnd = m_context.appendConditionalJump();
++		// Special case for tightly-stored byte arrays
++		if (_sourceType.isByteArray())
++		{
++			// stack here: memory_offset storage_offset length
++			m_context << eth::Instruction::DUP1 << u256(31) << eth::Instruction::LT;
++			eth::AssemblyItem longByteArray = m_context.appendConditionalJump();
++			// store the short byte array (discard lower-order byte)
++			m_context << u256(0x100) << eth::Instruction::DUP1;
++			m_context << eth::Instruction::DUP4 << eth::Instruction::SLOAD;
++			m_context << eth::Instruction::DIV << eth::Instruction::MUL;
++			m_context << eth::Instruction::DUP4 << eth::Instruction::MSTORE;
++			// stack here: memory_offset storage_offset length
++			// add 32 or length to memory offset
++			m_context << eth::Instruction::SWAP2;
++			if (_padToWordBoundaries)
++				m_context << u256(32);
++			else
++				m_context << eth::Instruction::DUP3;
++			m_context << eth::Instruction::ADD;
++			m_context << eth::Instruction::SWAP2;
++			m_context.appendJumpTo(loopEnd);
++			m_context << longByteArray;
++		}
+ 		// compute memory end offset
+ 		if (baseSize > 1)
+ 			// convert length to memory size
+@@ -497,11 +558,22 @@ void ArrayUtils::clearDynamicArray(ArrayType const& _type) const
+ 	solAssert(_type.location() == DataLocation::Storage, "");
+ 	solAssert(_type.isDynamicallySized(), "");
+ 
+-	unsigned stackHeightStart = m_context.stackHeight();
+ 	// fetch length
+-	m_context << eth::Instruction::DUP1 << eth::Instruction::SLOAD;
++	retrieveLength(_type);
+ 	// set length to zero
+ 	m_context << u256(0) << eth::Instruction::DUP3 << eth::Instruction::SSTORE;
++	// Special case: short byte arrays are stored togeher with their length
++	eth::AssemblyItem endTag = m_context.newTag();
++	if (_type.isByteArray())
++	{
++		// stack: ref old_length
++		m_context << eth::Instruction::DUP1 << u256(31) << eth::Instruction::LT;
++		eth::AssemblyItem longByteArray = m_context.appendConditionalJump();
++		m_context << eth::Instruction::POP;
++		m_context.appendJumpTo(endTag);
++		m_context.adjustStackOffset(1); // needed because of jump
++		m_context << longByteArray;
++	}
+ 	// stack: ref old_length
+ 	convertLengthToSize(_type);
+ 	// compute data positions
+@@ -516,11 +588,11 @@ void ArrayUtils::clearDynamicArray(ArrayType const& _type) const
+ 	else
+ 		clearStorageLoop(*_type.baseType());
+ 	// cleanup
++	m_context << endTag;
+ 	m_context << eth::Instruction::POP;
+-	solAssert(m_context.stackHeight() == stackHeightStart - 1, "");
+ }
+ 
+-void ArrayUtils::resizeDynamicArray(const ArrayType& _type) const
++void ArrayUtils::resizeDynamicArray(ArrayType const& _type) const
+ {
+ 	solAssert(_type.location() == DataLocation::Storage, "");
+ 	solAssert(_type.isDynamicallySized(), "");
+@@ -532,10 +604,104 @@ void ArrayUtils::resizeDynamicArray(const ArrayType& _type) const
+ 
+ 	// stack: ref new_length
+ 	// fetch old length
+-	m_context << eth::Instruction::DUP2 << eth::Instruction::SLOAD;
++	retrieveLength(_type, 1);
++	// stack: ref new_length old_length
++	solAssert(m_context.stackHeight() - stackHeightStart == 3 - 2, "2");
++
++	// Special case for short byte arrays, they are stored together with their length
++	if (_type.isByteArray())
++	{
++		eth::AssemblyItem regularPath = m_context.newTag();
++		// We start by a large case-distinction about the old and new length of the byte array.
++
++		m_context << eth::Instruction::DUP3 << eth::Instruction::SLOAD;
++		// stack: ref new_length current_length ref_value
++
++		solAssert(m_context.stackHeight() - stackHeightStart == 4 - 2, "3");
++		m_context << eth::Instruction::DUP2 << u256(31) << eth::Instruction::LT;
++		eth::AssemblyItem currentIsLong = m_context.appendConditionalJump();
++		m_context << eth::Instruction::DUP3 << u256(31) << eth::Instruction::LT;
++		eth::AssemblyItem newIsLong = m_context.appendConditionalJump();
++
++		// Here: short -> short
++
++		// Compute 1 << (256 - 8 * new_size)
++		eth::AssemblyItem shortToShort = m_context.newTag();
++		m_context << shortToShort;
++		m_context << eth::Instruction::DUP3 << u256(8) << eth::Instruction::MUL;
++		m_context << u256(0x100) << eth::Instruction::SUB;
++		m_context << u256(2) << eth::Instruction::EXP;
++		// Divide and multiply by that value, clearing bits.
++		m_context << eth::Instruction::DUP1 << eth::Instruction::SWAP2;
++		m_context << eth::Instruction::DIV << eth::Instruction::MUL;
++		// Insert 2*length.
++		m_context << eth::Instruction::DUP3 << eth::Instruction::DUP1 << eth::Instruction::ADD;
++		m_context << eth::Instruction::OR;
++		// Store.
++		m_context << eth::Instruction::DUP4 << eth::Instruction::SSTORE;
++		solAssert(m_context.stackHeight() - stackHeightStart == 3 - 2, "3");
++		m_context.appendJumpTo(resizeEnd);
++
++		m_context.adjustStackOffset(1); // we have to do that because of the jumps
++		// Here: short -> long
++
++		m_context << newIsLong;
++		// stack: ref new_length current_length ref_value
++		solAssert(m_context.stackHeight() - stackHeightStart == 4 - 2, "3");
++		// Zero out lower-order byte.
++		m_context << u256(0xff) << eth::Instruction::NOT << eth::Instruction::AND;
++		// Store at data location.
++		m_context << eth::Instruction::DUP4;
++		CompilerUtils(m_context).computeHashStatic();
++		m_context << eth::Instruction::SSTORE;
++		// stack: ref new_length current_length
++		// Store new length: Compule 2*length + 1 and store it.
++		m_context << eth::Instruction::DUP2 << eth::Instruction::DUP1 << eth::Instruction::ADD;
++		m_context << u256(1) << eth::Instruction::ADD;
++		// stack: ref new_length current_length 2*new_length+1
++		m_context << eth::Instruction::DUP4 << eth::Instruction::SSTORE;
++		solAssert(m_context.stackHeight() - stackHeightStart == 3 - 2, "3");
++		m_context.appendJumpTo(resizeEnd);
++
++		m_context.adjustStackOffset(1); // we have to do that because of the jumps
++
++		m_context << currentIsLong;
++		m_context << eth::Instruction::DUP3 << u256(31) << eth::Instruction::LT;
++		m_context.appendConditionalJumpTo(regularPath);
++
++		// Here: long -> short
++		// Read the first word of the data and store it on the stack. Clear the data location and
++		// then jump to the short -> short case.
++
++		// stack: ref new_length current_length ref_value
++		solAssert(m_context.stackHeight() - stackHeightStart == 4 - 2, "3");
++		m_context << eth::Instruction::POP << eth::Instruction::DUP3;
++		CompilerUtils(m_context).computeHashStatic();
++		m_context << eth::Instruction::DUP1 << eth::Instruction::SLOAD << eth::Instruction::SWAP1;
++		// stack: ref new_length current_length first_word data_location
++		m_context << eth::Instruction::DUP3;
++		convertLengthToSize(_type);
++		m_context << eth::Instruction::DUP2 << eth::Instruction::ADD << eth::Instruction::SWAP1;
++		// stack: ref new_length current_length first_word data_location_end data_location
++		clearStorageLoop(IntegerType(256));
++		m_context << eth::Instruction::POP;
++		// stack: ref new_length current_length first_word
++		solAssert(m_context.stackHeight() - stackHeightStart == 4 - 2, "3");
++		m_context.appendJumpTo(shortToShort);
++
++		m_context << regularPath;
++		// stack: ref new_length current_length ref_value
++		m_context << eth::Instruction::POP;
++	}
++
++	// Change of length for a regular array (i.e. length at location, data at sha3(location)).
+ 	// stack: ref new_length old_length
+ 	// store new length
+-	m_context << eth::Instruction::DUP2 << eth::Instruction::DUP4 << eth::Instruction::SSTORE;
++	m_context << eth::Instruction::DUP2;
++	if (_type.isByteArray())
++		// For a "long" byte array, store length as 2*length+1
++		m_context << eth::Instruction::DUP1 << eth::Instruction::ADD << u256(1) << eth::Instruction::ADD;
++	m_context<< eth::Instruction::DUP4 << eth::Instruction::SSTORE;
+ 	// skip if size is not reduced
+ 	m_context << eth::Instruction::DUP2 << eth::Instruction::DUP2
+ 		<< eth::Instruction::ISZERO << eth::Instruction::GT;
+@@ -642,13 +808,13 @@ void ArrayUtils::convertLengthToSize(ArrayType const& _arrayType, bool _pad) con
+ 	}
+ }
+ 
+-void ArrayUtils::retrieveLength(ArrayType const& _arrayType) const
++void ArrayUtils::retrieveLength(ArrayType const& _arrayType, unsigned _stackDepth) const
+ {
+ 	if (!_arrayType.isDynamicallySized())
+ 		m_context << _arrayType.length();
+ 	else
+ 	{
+-		m_context << eth::Instruction::DUP1;
++		m_context << eth::dupInstruction(1 + _stackDepth);
+ 		switch (_arrayType.location())
+ 		{
+ 		case DataLocation::CallData:
+@@ -659,6 +825,17 @@ void ArrayUtils::retrieveLength(ArrayType const& _arrayType) const
+ 			break;
+ 		case DataLocation::Storage:
+ 			m_context << eth::Instruction::SLOAD;
++			if (_arrayType.isByteArray())
++			{
++				// Retrieve length both for in-place strings and off-place strings:
++				// Computes (x & (0x100 * (ISZERO (x & 1)) - 1)) / 2
++				// i.e. for short strings (x & 1 == 0) it does (x & 0xff) / 2 and for long strings it
++				// computes (x & (-1)) / 2, which is equivalent to just x / 2.
++				m_context << u256(1) << eth::Instruction::DUP2 << u256(1) << eth::Instruction::AND;
++				m_context << eth::Instruction::ISZERO << u256(0x100) << eth::Instruction::MUL;
++				m_context << eth::Instruction::SUB << eth::Instruction::AND;
++				m_context << u256(2) << eth::Instruction::SWAP1 << eth::Instruction::DIV;
++			}
+ 			break;
+ 		}
+ 	}
+@@ -666,46 +843,33 @@ void ArrayUtils::retrieveLength(ArrayType const& _arrayType) const
+ 
+ void ArrayUtils::accessIndex(ArrayType const& _arrayType, bool _doBoundsCheck) const
+ {
++	/// Stack: reference [length] index
+ 	DataLocation location = _arrayType.location();
+-	eth::Instruction load =
+-		location == DataLocation::Storage ? eth::Instruction::SLOAD :
+-		location == DataLocation::Memory ? eth::Instruction::MLOAD :
+-		eth::Instruction::CALLDATALOAD;
+ 
+ 	if (_doBoundsCheck)
+ 	{
+ 		// retrieve length
+-		if (!_arrayType.isDynamicallySized())
+-			m_context << _arrayType.length();
+-		else if (location == DataLocation::CallData)
+-			// length is stored on the stack
+-			m_context << eth::Instruction::SWAP1;
+-		else
+-			m_context << eth::Instruction::DUP2 << load;
+-		// stack: <base_ref> <index> <length>
++		ArrayUtils::retrieveLength(_arrayType, 1);
++		// Stack: ref [length] index length
+ 		// check out-of-bounds access
+ 		m_context << eth::Instruction::DUP2 << eth::Instruction::LT << eth::Instruction::ISZERO;
+ 		// out-of-bounds access throws exception
+ 		m_context.appendConditionalJumpTo(m_context.errorTag());
+ 	}
+-	else if (location == DataLocation::CallData && _arrayType.isDynamicallySized())
++	if (location == DataLocation::CallData && _arrayType.isDynamicallySized())
+ 		// remove length if present
+ 		m_context << eth::Instruction::SWAP1 << eth::Instruction::POP;
+ 
+ 	// stack: <base_ref> <index>
+ 	m_context << eth::Instruction::SWAP1;
+-	if (_arrayType.isDynamicallySized())
+-	{
+-		if (location == DataLocation::Storage)
+-			CompilerUtils(m_context).computeHashStatic();
+-		else if (location == DataLocation::Memory)
+-			m_context << u256(32) << eth::Instruction::ADD;
+-	}
+-	// stack: <index> <data_ref>
++	// stack: <index> <base_ref>
+ 	switch (location)
+ 	{
+-	case DataLocation::CallData:
+ 	case DataLocation::Memory:
++		if (_arrayType.isDynamicallySized())
++			m_context << u256(32) << eth::Instruction::ADD;
++		// fall-through
++	case DataLocation::CallData:
+ 		if (!_arrayType.isByteArray())
+ 		{
+ 			m_context << eth::Instruction::SWAP1;
+@@ -718,6 +882,20 @@ void ArrayUtils::accessIndex(ArrayType const& _arrayType, bool _doBoundsCheck) c
+ 		m_context << eth::Instruction::ADD;
+ 		break;
+ 	case DataLocation::Storage:
++	{
++		eth::AssemblyItem endTag = m_context.newTag();
++		if (_arrayType.isByteArray())
++		{
++			// Special case of short byte arrays.
++			m_context << eth::Instruction::SWAP1;
++			m_context << eth::Instruction::DUP2 << eth::Instruction::SLOAD;
++			m_context << u256(1) << eth::Instruction::AND << eth::Instruction::ISZERO;
++			// No action needed for short byte arrays.
++			m_context.appendConditionalJumpTo(endTag);
++			m_context << eth::Instruction::SWAP1;
++		}
++		if (_arrayType.isDynamicallySized())
++			CompilerUtils(m_context).computeHashStatic();
+ 		m_context << eth::Instruction::SWAP1;
+ 		if (_arrayType.baseType()->storageBytes() <= 16)
+ 		{
+@@ -744,8 +922,12 @@ void ArrayUtils::accessIndex(ArrayType const& _arrayType, bool _doBoundsCheck) c
+ 				m_context << _arrayType.baseType()->storageSize() << eth::Instruction::MUL;
+ 			m_context << eth::Instruction::ADD << u256(0);
+ 		}
++		m_context << endTag;
+ 		break;
+ 	}
++	default:
++		solAssert(false, "");
++	}
+ }
+ 
+ void ArrayUtils::incrementByteOffset(unsigned _byteSize, unsigned _byteOffsetPosition, unsigned _storageOffsetPosition) const
+diff --git a/libsolidity/ArrayUtils.h b/libsolidity/ArrayUtils.h
+index 80ffc008..53d36c14 100644
+--- a/libsolidity/ArrayUtils.h
++++ b/libsolidity/ArrayUtils.h
+@@ -75,9 +75,14 @@ public:
+ 	void convertLengthToSize(ArrayType const& _arrayType, bool _pad = false) const;
+ 	/// Retrieves the length (number of elements) of the array ref on the stack. This also
+ 	/// works for statically-sized arrays.
++	/// @param _stackDepth number of stack elements between top of stack and top (!) of reference
+ 	/// Stack pre: reference (excludes byte offset for dynamic storage arrays)
+ 	/// Stack post: reference length
+-	void retrieveLength(ArrayType const& _arrayType) const;
++	void retrieveLength(ArrayType const& _arrayType, unsigned _stackDepth = 0) const;
++	/// Stores the length of an array of type @a _arrayType in storage. The length itself is stored
++	/// on the stack at position @a _stackDepthLength and the storage reference at @a _stackDepthRef.
++	/// If @a _arrayType is a byte array, takes tight coding into account.
++	void storeLength(ArrayType const& _arrayType, unsigned _stackDepthLength = 0, unsigned _stackDepthRef = 1) const;
+ 	/// Performs bounds checking and returns a reference on the stack.
+ 	/// Stack pre: reference [length] index
+ 	/// Stack post (storage): storage_slot byte_offset
+diff --git a/libsolidity/Compiler.cpp b/libsolidity/Compiler.cpp
+index cb74072d..7ce2121e 100644
+--- a/libsolidity/Compiler.cpp
++++ b/libsolidity/Compiler.cpp
+@@ -68,6 +68,12 @@ void Compiler::compileContract(
+ 	packIntoContractCreator(_contract, m_runtimeContext);
+ 	if (m_optimize)
+ 		m_context.optimise(m_optimizeRuns);
++
++	if (_contract.isLibrary())
++	{
++		solAssert(m_runtimeSub != size_t(-1), "");
++		m_context.injectVersionStampIntoSub(m_runtimeSub);
++	}
+ }
+ 
+ void Compiler::compileClone(
+@@ -210,13 +216,10 @@ void Compiler::appendConstructor(FunctionDefinition const& _constructor)
+ 		m_context << eth::Instruction::DUP1;
+ 		m_context.appendProgramSize();
+ 		m_context << eth::Instruction::DUP4 << eth::Instruction::CODECOPY;
+-		m_context << eth::Instruction::ADD;
++		m_context << eth::Instruction::DUP2 << eth::Instruction::ADD;
+ 		CompilerUtils(m_context).storeFreeMemoryPointer();
+-		appendCalldataUnpacker(
+-			FunctionType(_constructor).parameterTypes(),
+-			true,
+-			CompilerUtils::freeMemoryPointer + 0x20
+-		);
++		// stack: <memptr>
++		appendCalldataUnpacker(FunctionType(_constructor).parameterTypes(), true);
+ 	}
+ 	_constructor.accept(*this);
+ }
+@@ -255,8 +258,11 @@ void Compiler::appendFunctionSelector(ContractDefinition const& _contract)
+ 		eth::AssemblyItem returnTag = m_context.pushNewTag();
+ 		fallback->accept(*this);
+ 		m_context << returnTag;
+-		appendReturnValuePacker(FunctionType(*fallback).returnParameterTypes());
++		appendReturnValuePacker(FunctionType(*fallback).returnParameterTypes(), _contract.isLibrary());
+ 	}
++	else if (_contract.isLibrary())
++		// Reject invalid library calls and ether sent to a library.
++		m_context.appendJumpTo(m_context.errorTag());
+ 	else
+ 		m_context << eth::Instruction::STOP; // function not found
+ 
+@@ -267,36 +273,29 @@ void Compiler::appendFunctionSelector(ContractDefinition const& _contract)
+ 		CompilerContext::LocationSetter locationSetter(m_context, functionType->declaration());
+ 		m_context << callDataUnpackerEntryPoints.at(it.first);
+ 		eth::AssemblyItem returnTag = m_context.pushNewTag();
++		m_context << CompilerUtils::dataStartOffset;
+ 		appendCalldataUnpacker(functionType->parameterTypes());
+ 		m_context.appendJumpTo(m_context.functionEntryLabel(functionType->declaration()));
+ 		m_context << returnTag;
+-		appendReturnValuePacker(functionType->returnParameterTypes());
++		appendReturnValuePacker(functionType->returnParameterTypes(), _contract.isLibrary());
+ 	}
+ }
+ 
+-void Compiler::appendCalldataUnpacker(
+-	TypePointers const& _typeParameters,
+-	bool _fromMemory,
+-	u256 _startOffset
+-)
++void Compiler::appendCalldataUnpacker(TypePointers const& _typeParameters, bool _fromMemory)
+ {
+-	// We do not check the calldata size, everything is zero-paddedd
++	// We do not check the calldata size, everything is zero-padded
+ 
+ 	//@todo this does not yet support nested dynamic arrays
+ 
+-	if (_startOffset == u256(-1))
+-		_startOffset = u256(CompilerUtils::dataStartOffset);
+-
+-	m_context << _startOffset;
+-	for (TypePointer const& type: _typeParameters)
++	// Retain the offset pointer as base_offset, the point from which the data offsets are computed.
++	m_context << eth::Instruction::DUP1;
++	for (TypePointer const& parameterType: _typeParameters)
+ 	{
+-		// stack: v1 v2 ... v(k-1) mem_offset
+-		switch (type->category())
+-		{
+-		case Type::Category::Array:
++		// stack: v1 v2 ... v(k-1) base_offset current_offset
++		TypePointer type = parameterType->decodingType();
++		if (type->category() == Type::Category::Array)
+ 		{
+ 			auto const& arrayType = dynamic_cast<ArrayType const&>(*type);
+-			solAssert(arrayType.location() != DataLocation::Storage, "");
+ 			solAssert(!arrayType.baseType()->isDynamicallySized(), "Nested arrays not yet implemented.");
+ 			if (_fromMemory)
+ 			{
+@@ -309,9 +308,9 @@ void Compiler::appendCalldataUnpacker(
+ 				solAssert(arrayType.location() == DataLocation::Memory, "");
+ 				// compute data pointer
+ 				m_context << eth::Instruction::DUP1 << eth::Instruction::MLOAD;
+-				//@todo once we support nested arrays, this offset needs to be dynamic.
+-				m_context << _startOffset << eth::Instruction::ADD;
+-				m_context << eth::Instruction::SWAP1 << u256(0x20) << eth::Instruction::ADD;
++				m_context << eth::Instruction::DUP3 << eth::Instruction::ADD;
++				m_context << eth::Instruction::SWAP2 << eth::Instruction::SWAP1;
++				m_context << u256(0x20) << eth::Instruction::ADD;
+ 			}
+ 			else
+ 			{
+@@ -321,14 +320,14 @@ void Compiler::appendCalldataUnpacker(
+ 				{
+ 					// put on stack: data_pointer length
+ 					CompilerUtils(m_context).loadFromMemoryDynamic(IntegerType(256), !_fromMemory);
+-					// stack: data_offset next_pointer
+-					//@todo once we support nested arrays, this offset needs to be dynamic.
+-					m_context << eth::Instruction::SWAP1 << _startOffset << eth::Instruction::ADD;
+-					// stack: next_pointer data_pointer
++					// stack: base_offset data_offset next_pointer
++					m_context << eth::Instruction::SWAP1 << eth::Instruction::DUP3 << eth::Instruction::ADD;
++					// stack: base_offset next_pointer data_pointer
+ 					// retrieve length
+ 					CompilerUtils(m_context).loadFromMemoryDynamic(IntegerType(256), !_fromMemory, true);
+-					// stack: next_pointer length data_pointer
++					// stack: base_offset next_pointer length data_pointer
+ 					m_context << eth::Instruction::SWAP2;
++					// stack: base_offset data_pointer length next_pointer
+ 				}
+ 				else
+ 				{
+@@ -338,7 +337,7 @@ void Compiler::appendCalldataUnpacker(
+ 				}
+ 				if (arrayType.location() == DataLocation::Memory)
+ 				{
+-					// stack: calldata_ref [length] next_calldata
++					// stack: base_offset calldata_ref [length] next_calldata
+ 					// copy to memory
+ 					// move calldata type up again
+ 					CompilerUtils(m_context).moveIntoStack(calldataType->sizeOnStack());
+@@ -346,18 +345,24 @@ void Compiler::appendCalldataUnpacker(
+ 					// fetch next pointer again
+ 					CompilerUtils(m_context).moveToStackTop(arrayType.sizeOnStack());
+ 				}
++				// move base_offset up
++				CompilerUtils(m_context).moveToStackTop(1 + arrayType.sizeOnStack());
++				m_context << eth::Instruction::SWAP1;
+ 			}
+-			break;
+ 		}
+-		default:
++		else
++		{
+ 			solAssert(!type->isDynamicallySized(), "Unknown dynamically sized type: " + type->toString());
+ 			CompilerUtils(m_context).loadFromMemoryDynamic(*type, !_fromMemory, true);
++			CompilerUtils(m_context).moveToStackTop(1 + type->sizeOnStack());
++			m_context << eth::Instruction::SWAP1;
+ 		}
++		// stack: v1 v2 ... v(k-1) v(k) base_offset mem_offset
+ 	}
+-	m_context << eth::Instruction::POP;
++	m_context << eth::Instruction::POP << eth::Instruction::POP;
+ }
+ 
+-void Compiler::appendReturnValuePacker(TypePointers const& _typeParameters)
++void Compiler::appendReturnValuePacker(TypePointers const& _typeParameters, bool _isLibrary)
+ {
+ 	CompilerUtils utils(m_context);
+ 	if (_typeParameters.empty())
+@@ -367,7 +372,7 @@ void Compiler::appendReturnValuePacker(TypePointers const& _typeParameters)
+ 		utils.fetchFreeMemoryPointer();
+ 		//@todo optimization: if we return a single memory array, there should be enough space before
+ 		// its data to add the needed parts and we avoid a memory copy.
+-		utils.encodeToMemory(_typeParameters, _typeParameters);
++		utils.encodeToMemory(_typeParameters, _typeParameters, true, false, _isLibrary);
+ 		utils.toSizeAfterFreeMemoryPointer();
+ 		m_context << eth::Instruction::RETURN;
+ 	}
+diff --git a/libsolidity/Compiler.h b/libsolidity/Compiler.h
+index 7b7cffcf..3cf1004a 100644
+--- a/libsolidity/Compiler.h
++++ b/libsolidity/Compiler.h
+@@ -85,13 +85,9 @@ private:
+ 	void appendFunctionSelector(ContractDefinition const& _contract);
+ 	/// Creates code that unpacks the arguments for the given function represented by a vector of TypePointers.
+ 	/// From memory if @a _fromMemory is true, otherwise from call data.
+-	/// Expects source offset on the stack.
+-	void appendCalldataUnpacker(
+-		TypePointers const& _typeParameters,
+-		bool _fromMemory = false,
+-		u256 _startOffset = u256(-1)
+-	);
+-	void appendReturnValuePacker(TypePointers const& _typeParameters);
++	/// Expects source offset on the stack, which is removed.
++	void appendCalldataUnpacker(TypePointers const& _typeParameters, bool _fromMemory = false);
++	void appendReturnValuePacker(TypePointers const& _typeParameters, bool _isLibrary);
+ 
+ 	void registerStateVariables(ContractDefinition const& _contract);
+ 	void initializeStateVariables(ContractDefinition const& _contract);
+diff --git a/libsolidity/CompilerContext.cpp b/libsolidity/CompilerContext.cpp
+index 717627a5..fa7f9c77 100644
+--- a/libsolidity/CompilerContext.cpp
++++ b/libsolidity/CompilerContext.cpp
+@@ -20,10 +20,12 @@
+  * Utilities for the solidity compiler.
+  */
+ 
++#include <libsolidity/CompilerContext.h>
+ #include <utility>
+ #include <numeric>
+ #include <libsolidity/AST.h>
+ #include <libsolidity/Compiler.h>
++#include <libsolidity/Version.h>
+ 
+ using namespace std;
+ 
+@@ -177,6 +179,13 @@ void CompilerContext::resetVisitedNodes(ASTNode const* _node)
+ 	updateSourceLocation();
+ }
+ 
++void CompilerContext::injectVersionStampIntoSub(size_t _subIndex)
++{
++	eth::Assembly& sub = m_asm.sub(_subIndex);
++	sub.injectStart(eth::Instruction::POP);
++	sub.injectStart(fromBigEndian<u256>(binaryVersion()));
++}
++
+ eth::AssemblyItem CompilerContext::virtualFunctionEntryLabel(
+ 	FunctionDefinition const& _function,
+ 	vector<ContractDefinition const*>::const_iterator _searchStart
+diff --git a/libsolidity/CompilerContext.h b/libsolidity/CompilerContext.h
+index 46ebfcf8..18865091 100644
+--- a/libsolidity/CompilerContext.h
++++ b/libsolidity/CompilerContext.h
+@@ -128,6 +128,9 @@ public:
+ 	CompilerContext& operator<<(u256 const& _value) { m_asm.append(_value); return *this; }
+ 	CompilerContext& operator<<(bytes const& _data) { m_asm.append(_data); return *this; }
+ 
++	/// Prepends "PUSH <compiler version number> POP"
++	void injectVersionStampIntoSub(size_t _subIndex);
++
+ 	void optimise(unsigned _runs = 200) { m_asm.optimise(true, true, _runs); }
+ 
+ 	eth::Assembly const& assembly() const { return m_asm; }
+diff --git a/libsolidity/CompilerStack.cpp b/libsolidity/CompilerStack.cpp
+index e6b87264..8c1cd8cf 100644
+--- a/libsolidity/CompilerStack.cpp
++++ b/libsolidity/CompilerStack.cpp
+@@ -122,6 +122,7 @@ bool CompilerStack::parse()
+ 			}
+ 
+ 	InterfaceHandler interfaceHandler;
++	bool typesFine = true;
+ 	for (Source const* source: m_sourceOrder)
+ 		for (ASTPointer<ASTNode> const& node: source->ast->nodes())
+ 			if (ContractDefinition* contract = dynamic_cast<ContractDefinition*>(node.get()))
+@@ -129,14 +130,17 @@ bool CompilerStack::parse()
+ 				m_globalContext->setCurrentContract(*contract);
+ 				resolver.updateDeclaration(*m_globalContext->currentThis());
+ 				TypeChecker typeChecker;
+-				bool typesFine = typeChecker.checkTypeRequirements(*contract);
+-				if (!typesFine)
+-					m_errors += typeChecker.errors();
+-				contract->setDevDocumentation(interfaceHandler.devDocumentation(*contract));
+-				contract->setUserDocumentation(interfaceHandler.userDocumentation(*contract));
++				if (typeChecker.checkTypeRequirements(*contract))
++				{
++					contract->setDevDocumentation(interfaceHandler.devDocumentation(*contract));
++					contract->setUserDocumentation(interfaceHandler.userDocumentation(*contract));
++				}
++				else
++					typesFine = false;
+ 				m_contracts[contract->name()].contract = contract;
++				m_errors += typeChecker.errors();
+ 			}
+-	m_parseSuccessful = m_errors.empty();
++	m_parseSuccessful = typesFine;
+ 	return m_parseSuccessful;
+ }
+ 
+@@ -166,22 +170,8 @@ bool CompilerStack::compile(bool _optimize, unsigned _runs)
+ 	map<ContractDefinition const*, eth::Assembly const*> compiledContracts;
+ 	for (Source const* source: m_sourceOrder)
+ 		for (ASTPointer<ASTNode> const& node: source->ast->nodes())
+-			if (ContractDefinition* contract = dynamic_cast<ContractDefinition*>(node.get()))
+-			{
+-				if (!contract->annotation().isFullyImplemented)
+-					continue;
+-				shared_ptr<Compiler> compiler = make_shared<Compiler>(_optimize, _runs);
+-				compiler->compileContract(*contract, compiledContracts);
+-				Contract& compiledContract = m_contracts.at(contract->name());
+-				compiledContract.compiler = compiler;
+-				compiledContract.object = compiler->assembledObject();
+-				compiledContract.runtimeObject = compiler->runtimeObject();
+-				compiledContracts[compiledContract.contract] = &compiler->assembly();
+-
+-				Compiler cloneCompiler(_optimize, _runs);
+-				cloneCompiler.compileClone(*contract, compiledContracts);
+-				compiledContract.cloneObject = cloneCompiler.assembledObject();
+-			}
++			if (auto contract = dynamic_cast<ContractDefinition const*>(node.get()))
++				compileContract(_optimize, _runs, *contract, compiledContracts);
+ 	return true;
+ }
+ 
+@@ -371,6 +361,31 @@ void CompilerStack::resolveImports()
+ 	swap(m_sourceOrder, sourceOrder);
+ }
+ 
++void CompilerStack::compileContract(
++	bool _optimize,
++	unsigned _runs,
++	ContractDefinition const& _contract,
++	map<ContractDefinition const*, eth::Assembly const*>& _compiledContracts
++)
++{
++	if (_compiledContracts.count(&_contract) || !_contract.annotation().isFullyImplemented)
++		return;
++	for (auto const* dependency: _contract.annotation().contractDependencies)
++		compileContract(_optimize, _runs, *dependency, _compiledContracts);
++
++	shared_ptr<Compiler> compiler = make_shared<Compiler>(_optimize, _runs);
++	compiler->compileContract(_contract, _compiledContracts);
++	Contract& compiledContract = m_contracts.at(_contract.name());
++	compiledContract.compiler = compiler;
++	compiledContract.object = compiler->assembledObject();
++	compiledContract.runtimeObject = compiler->runtimeObject();
++	_compiledContracts[compiledContract.contract] = &compiler->assembly();
++
++	Compiler cloneCompiler(_optimize, _runs);
++	cloneCompiler.compileClone(_contract, _compiledContracts);
++	compiledContract.cloneObject = cloneCompiler.assembledObject();
++}
++
+ std::string CompilerStack::defaultContractName() const
+ {
+ 	return contract("").contract->name();
+diff --git a/libsolidity/CompilerStack.h b/libsolidity/CompilerStack.h
+index e541ea47..da26148d 100644
+--- a/libsolidity/CompilerStack.h
++++ b/libsolidity/CompilerStack.h
+@@ -39,6 +39,7 @@ namespace dev
+ 
+ namespace eth
+ {
++class Assembly;
+ class AssemblyItem;
+ using AssemblyItems = std::vector<AssemblyItem>;
+ }
+@@ -195,6 +196,13 @@ private:
+ 	};
+ 
+ 	void resolveImports();
++	/// Compile a single contract and put the result in @a _compiledContracts.
++	void compileContract(
++		bool _optimize,
++		unsigned _runs,
++		ContractDefinition const& _contract,
++		std::map<ContractDefinition const*, eth::Assembly const*>& _compiledContracts
++	);
+ 
+ 	Contract const& contract(std::string const& _contractName = "") const;
+ 	Source const& source(std::string const& _sourceName = "") const;
+diff --git a/libsolidity/CompilerUtils.cpp b/libsolidity/CompilerUtils.cpp
+index a77e6536..e1152202 100644
+--- a/libsolidity/CompilerUtils.cpp
++++ b/libsolidity/CompilerUtils.cpp
+@@ -153,14 +153,15 @@ void CompilerUtils::encodeToMemory(
+ 	TypePointers const& _givenTypes,
+ 	TypePointers const& _targetTypes,
+ 	bool _padToWordBoundaries,
+-	bool _copyDynamicDataInPlace
++	bool _copyDynamicDataInPlace,
++	bool _encodeAsLibraryTypes
+ )
+ {
+ 	// stack: <v1> <v2> ... <vn> <mem>
+ 	TypePointers targetTypes = _targetTypes.empty() ? _givenTypes : _targetTypes;
+ 	solAssert(targetTypes.size() == _givenTypes.size(), "");
+ 	for (TypePointer& t: targetTypes)
+-		t = t->mobileType()->externalType();
++		t = t->mobileType()->interfaceType(_encodeAsLibraryTypes)->encodingType();
+ 
+ 	// Stack during operation:
+ 	// <v1> <v2> ... <vn> <mem_start> <dyn_head_1> ... <dyn_head_r> <end_of_mem>
+@@ -188,7 +189,14 @@ void CompilerUtils::encodeToMemory(
+ 			copyToStackTop(argSize - stackPos + dynPointers + 2, _givenTypes[i]->sizeOnStack());
+ 			solAssert(!!targetType, "Externalable type expected.");
+ 			TypePointer type = targetType;
+-			if (
++			if (_givenTypes[i]->dataStoredIn(DataLocation::Storage) && targetType->isValueType())
++			{
++				// special case: convert storage reference type to value type - this is only
++				// possible for library calls where we just forward the storage reference
++				solAssert(_encodeAsLibraryTypes, "");
++				solAssert(_givenTypes[i]->sizeOnStack() == 1, "");
++			}
++			else if (
+ 				_givenTypes[i]->dataStoredIn(DataLocation::Storage) ||
+ 				_givenTypes[i]->dataStoredIn(DataLocation::CallData) ||
+ 				_givenTypes[i]->category() == Type::Category::StringLiteral
+@@ -237,15 +245,7 @@ void CompilerUtils::encodeToMemory(
+ 				// stack: ... <end_of_mem> <value...>
+ 				// copy length to memory
+ 				m_context << eth::dupInstruction(1 + arrayType.sizeOnStack());
+-				if (arrayType.location() == DataLocation::CallData)
+-					m_context << eth::Instruction::DUP2; // length is on stack
+-				else if (arrayType.location() == DataLocation::Storage)
+-					m_context << eth::Instruction::DUP2 << eth::Instruction::SLOAD;
+-				else
+-				{
+-					solAssert(arrayType.location() == DataLocation::Memory, "");
+-					m_context << eth::Instruction::DUP2 << eth::Instruction::MLOAD;
+-				}
++				ArrayUtils(m_context).retrieveLength(arrayType, 1);
+ 				// stack: ... <end_of_mem> <value...> <end_of_mem'> <length>
+ 				storeInMemoryDynamic(IntegerType(256), true);
+ 				// stack: ... <end_of_mem> <value...> <end_of_mem''>
+diff --git a/libsolidity/CompilerUtils.h b/libsolidity/CompilerUtils.h
+index 568a6307..f335eed5 100644
+--- a/libsolidity/CompilerUtils.h
++++ b/libsolidity/CompilerUtils.h
+@@ -91,13 +91,16 @@ public:
+ 	/// @param _padToWordBoundaries if false, all values are concatenated without padding.
+ 	/// @param _copyDynamicDataInPlace if true, dynamic types is stored (without length)
+ 	/// together with fixed-length data.
++	/// @param _encodeAsLibraryTypes if true, encodes for a library function, e.g. does not
++	/// convert storage pointer types to memory types.
+ 	/// @note the locations of target reference types are ignored, because it will always be
+ 	/// memory.
+ 	void encodeToMemory(
+ 		TypePointers const& _givenTypes = {},
+ 		TypePointers const& _targetTypes = {},
+ 		bool _padToWordBoundaries = true,
+-		bool _copyDynamicDataInPlace = false
++		bool _copyDynamicDataInPlace = false,
++		bool _encodeAsLibraryTypes = false
+ 	);
+ 
+ 	/// Uses a CALL to the identity contract to perform a memory-to-memory copy.
+diff --git a/libsolidity/DeclarationContainer.h b/libsolidity/DeclarationContainer.h
+index ffbd1fcb..3d6ed2cc 100644
+--- a/libsolidity/DeclarationContainer.h
++++ b/libsolidity/DeclarationContainer.h
+@@ -40,8 +40,10 @@ namespace solidity
+ class DeclarationContainer
+ {
+ public:
+-	explicit DeclarationContainer(Declaration const* _enclosingDeclaration = nullptr,
+-								  DeclarationContainer const* _enclosingContainer = nullptr):
++	explicit DeclarationContainer(
++		Declaration const* _enclosingDeclaration = nullptr,
++		DeclarationContainer const* _enclosingContainer = nullptr
++	):
+ 		m_enclosingDeclaration(_enclosingDeclaration), m_enclosingContainer(_enclosingContainer) {}
+ 	/// Registers the declaration in the scope unless its name is already declared or the name is empty.
+ 	/// @param _invisible if true, registers the declaration, reports name clashes but does not return it in @a resolveName
+diff --git a/libsolidity/Exceptions.h b/libsolidity/Exceptions.h
+index 645b368f..8ab33999 100644
+--- a/libsolidity/Exceptions.h
++++ b/libsolidity/Exceptions.h
+@@ -31,13 +31,13 @@ namespace dev
+ {
+ namespace solidity
+ {
+-
+ struct Error: virtual Exception {};
+ 
+ struct ParserError: virtual Error {};
+ struct TypeError: virtual Error {};
+ struct DeclarationError: virtual Error {};
+ struct DocstringParsingError: virtual Error {};
++struct Warning: virtual Error {};
+ 
+ struct CompilerError: virtual Exception {};
+ struct InternalCompilerError: virtual Exception {};
+@@ -53,7 +53,6 @@ public:
+ 		infos.push_back(std::make_pair(_errMsg, _sourceLocation));
+ 		return *this;
+ 	}
+-
+ 	std::vector<errorSourceLocationInfo> infos;
+ };
+ 
+diff --git a/libsolidity/ExpressionCompiler.cpp b/libsolidity/ExpressionCompiler.cpp
+index 49bf2559..c11ef29e 100644
+--- a/libsolidity/ExpressionCompiler.cpp
++++ b/libsolidity/ExpressionCompiler.cpp
+@@ -585,7 +585,7 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 				}
+ 			if (!event.isAnonymous())
+ 			{
+-				m_context << u256(h256::Arith(dev::sha3(function.externalSignature(event.name()))));
++				m_context << u256(h256::Arith(dev::sha3(function.externalSignature())));
+ 				++numIndexed;
+ 			}
+ 			solAssert(numIndexed <= 4, "Too many indexed arguments.");
+@@ -1179,7 +1179,8 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 		argumentTypes,
+ 		_functionType.parameterTypes(),
+ 		_functionType.padArguments(),
+-		_functionType.takesArbitraryParameters()
++		_functionType.takesArbitraryParameters(),
++		isCallCode
+ 	);
+ 
+ 	// Stack now:
+diff --git a/libsolidity/InterfaceHandler.cpp b/libsolidity/InterfaceHandler.cpp
+index 50006caf..be15ae58 100644
+--- a/libsolidity/InterfaceHandler.cpp
++++ b/libsolidity/InterfaceHandler.cpp
+@@ -1,5 +1,6 @@
+ 
+ #include <libsolidity/InterfaceHandler.h>
++#include <boost/range/irange.hpp>
+ #include <libsolidity/AST.h>
+ #include <libsolidity/CompilerStack.h>
+ using namespace std;
+@@ -57,18 +58,18 @@ string InterfaceHandler::abiInterface(ContractDefinition const& _contractDef)
+ 
+ 	for (auto it: _contractDef.interfaceFunctions())
+ 	{
+-		auto externalFunctionType = it.second->externalFunctionType();
++		auto externalFunctionType = it.second->interfaceFunctionType();
+ 		Json::Value method;
+ 		method["type"] = "function";
+ 		method["name"] = it.second->declaration().name();
+ 		method["constant"] = it.second->isConstant();
+ 		method["inputs"] = populateParameters(
+ 			externalFunctionType->parameterNames(),
+-			externalFunctionType->parameterTypeNames()
++			externalFunctionType->parameterTypeNames(_contractDef.isLibrary())
+ 		);
+ 		method["outputs"] = populateParameters(
+ 			externalFunctionType->returnParameterNames(),
+-			externalFunctionType->returnParameterTypeNames()
++			externalFunctionType->returnParameterTypeNames(_contractDef.isLibrary())
+ 		);
+ 		abi.append(method);
+ 	}
+@@ -76,11 +77,11 @@ string InterfaceHandler::abiInterface(ContractDefinition const& _contractDef)
+ 	{
+ 		Json::Value method;
+ 		method["type"] = "constructor";
+-		auto externalFunction = FunctionType(*_contractDef.constructor()).externalFunctionType();
++		auto externalFunction = FunctionType(*_contractDef.constructor()).interfaceFunctionType();
+ 		solAssert(!!externalFunction, "");
+ 		method["inputs"] = populateParameters(
+ 			externalFunction->parameterNames(),
+-			externalFunction->parameterTypeNames()
++			externalFunction->parameterTypeNames(_contractDef.isLibrary())
+ 		);
+ 		abi.append(method);
+ 	}
+@@ -96,7 +97,7 @@ string InterfaceHandler::abiInterface(ContractDefinition const& _contractDef)
+ 		{
+ 			Json::Value input;
+ 			input["name"] = p->name();
+-			input["type"] = p->annotation().type->toString(true);
++			input["type"] = p->annotation().type->canonicalName(false);
+ 			input["indexed"] = p->isIndexed();
+ 			params.append(input);
+ 		}
+@@ -108,33 +109,64 @@ string InterfaceHandler::abiInterface(ContractDefinition const& _contractDef)
+ 
+ string InterfaceHandler::ABISolidityInterface(ContractDefinition const& _contractDef)
+ {
+-	string ret = "contract " + _contractDef.name() + "{";
++	string ret = (_contractDef.isLibrary() ? "library " : "contract ") + _contractDef.name() + "{";
+ 
+ 	auto populateParameters = [](vector<string> const& _paramNames, vector<string> const& _paramTypes)
+ 	{
+-		string r = "";
+-		solAssert(_paramNames.size() == _paramTypes.size(), "Names and types vector size does not match");
+-		for (unsigned i = 0; i < _paramNames.size(); ++i)
+-			r += (r.size() ? "," : "(") + _paramTypes[i] + " " + _paramNames[i];
+-		return r.size() ? r + ")" : "()";
++		string ret = "(";
++		for (size_t i = 0; i < _paramNames.size(); ++i)
++			ret += _paramTypes[i] + " " + _paramNames[i] + ",";
++		if (ret.size() != 1)
++			ret.pop_back();
++		return ret + ")";
+ 	};
++	// If this is a library, include all its enum and struct types. Should be more intelligent
++	// in the future and check what is actually used (it might even use types from other libraries
++	// or contracts or in the global scope).
++	if (_contractDef.isLibrary())
++	{
++		for (auto const& stru: _contractDef.definedStructs())
++		{
++			ret += "struct " + stru->name() + "{";
++			for (ASTPointer<VariableDeclaration> const& _member: stru->members())
++				ret += _member->type(nullptr)->canonicalName(false) + " " + _member->name() + ";";
++			ret += "}";
++		}
++		for (auto const& enu: _contractDef.definedEnums())
++		{
++			ret += "enum " + enu->name() + "{";
++			for (ASTPointer<EnumValue> const& val: enu->members())
++				ret += val->name() + ",";
++			if (ret.back() == ',')
++				ret.pop_back();
++			ret += "}";
++		}
++	}
+ 	if (_contractDef.constructor())
+ 	{
+-		auto externalFunction = FunctionType(*_contractDef.constructor()).externalFunctionType();
++		auto externalFunction = FunctionType(*_contractDef.constructor()).interfaceFunctionType();
+ 		solAssert(!!externalFunction, "");
+ 		ret +=
+ 			"function " +
+ 			_contractDef.name() +
+-			populateParameters(externalFunction->parameterNames(), externalFunction->parameterTypeNames()) +
++			populateParameters(
++				externalFunction->parameterNames(),
++				externalFunction->parameterTypeNames(_contractDef.isLibrary())
++			) +
+ 			";";
+ 	}
+ 	for (auto const& it: _contractDef.interfaceFunctions())
+ 	{
+ 		ret += "function " + it.second->declaration().name() +
+-			populateParameters(it.second->parameterNames(), it.second->parameterTypeNames()) +
+-			(it.second->isConstant() ? "constant " : "");
++			populateParameters(
++				it.second->parameterNames(),
++				it.second->parameterTypeNames(_contractDef.isLibrary())
++			) + (it.second->isConstant() ? "constant " : "");
+ 		if (it.second->returnParameterTypes().size())
+-			ret += "returns" + populateParameters(it.second->returnParameterNames(), it.second->returnParameterTypeNames());
++			ret += "returns" + populateParameters(
++				it.second->returnParameterNames(),
++				it.second->returnParameterTypeNames(_contractDef.isLibrary())
++			);
+ 		else if (ret.back() == ' ')
+ 			ret.pop_back();
+ 		ret += ";";
+diff --git a/libsolidity/LValue.cpp b/libsolidity/LValue.cpp
+index 81aaeb4d..9f33e846 100644
+--- a/libsolidity/LValue.cpp
++++ b/libsolidity/LValue.cpp
+@@ -435,9 +435,9 @@ StorageArrayLength::StorageArrayLength(CompilerContext& _compilerContext, const
+ 
+ void StorageArrayLength::retrieveValue(SourceLocation const&, bool _remove) const
+ {
+-	if (!_remove)
+-		m_context << eth::Instruction::DUP1;
+-	m_context << eth::Instruction::SLOAD;
++	ArrayUtils(m_context).retrieveLength(m_arrayType);
++	if (_remove)
++		m_context << eth::Instruction::SWAP1 << eth::Instruction::POP;
+ }
+ 
+ void StorageArrayLength::storeValue(Type const&, SourceLocation const&, bool _move) const
+diff --git a/libsolidity/NameAndTypeResolver.cpp b/libsolidity/NameAndTypeResolver.cpp
+index c3e31728..0ce20f3c 100644
+--- a/libsolidity/NameAndTypeResolver.cpp
++++ b/libsolidity/NameAndTypeResolver.cpp
+@@ -125,11 +125,27 @@ vector<Declaration const*> NameAndTypeResolver::resolveName(ASTString const& _na
+ 	return iterator->second.resolveName(_name, false);
+ }
+ 
+-vector<Declaration const*> NameAndTypeResolver::nameFromCurrentScope(ASTString const& _name, bool _recursive)
++vector<Declaration const*> NameAndTypeResolver::nameFromCurrentScope(ASTString const& _name, bool _recursive) const
+ {
+ 	return m_currentScope->resolveName(_name, _recursive);
+ }
+ 
++Declaration const* NameAndTypeResolver::pathFromCurrentScope(vector<ASTString> const& _path, bool _recursive) const
++{
++	solAssert(!_path.empty(), "");
++	vector<Declaration const*> candidates = m_currentScope->resolveName(_path.front(), _recursive);
++	for (size_t i = 1; i < _path.size() && candidates.size() == 1; i++)
++	{
++		if (!m_scopes.count(candidates.front()))
++			return nullptr;
++		candidates = m_scopes.at(candidates.front()).resolveName(_path[i], false);
++	}
++	if (candidates.size() == 1)
++		return candidates.front();
++	else
++		return nullptr;
++}
++
+ vector<Declaration const*> NameAndTypeResolver::cleanedDeclarations(
+ 		Identifier const& _identifier,
+ 		vector<Declaration const*> const& _declarations
+@@ -200,6 +216,7 @@ void NameAndTypeResolver::linearizeBaseContracts(ContractDefinition& _contract)
+ 	if (result.empty())
+ 		BOOST_THROW_EXCEPTION(_contract.createTypeError("Linearization of inheritance graph impossible"));
+ 	_contract.annotation().linearizedBaseContracts = result;
++	_contract.annotation().contractDependencies.insert(result.begin() + 1, result.end());
+ }
+ 
+ template <class _T>
+@@ -263,6 +280,7 @@ DeclarationRegistrationHelper::DeclarationRegistrationHelper(map<ASTNode const*,
+ bool DeclarationRegistrationHelper::visit(ContractDefinition& _contract)
+ {
+ 	registerDeclaration(_contract, true);
++	_contract.annotation().canonicalName = currentCanonicalName();
+ 	return true;
+ }
+ 
+@@ -274,6 +292,7 @@ void DeclarationRegistrationHelper::endVisit(ContractDefinition&)
+ bool DeclarationRegistrationHelper::visit(StructDefinition& _struct)
+ {
+ 	registerDeclaration(_struct, true);
++	_struct.annotation().canonicalName = currentCanonicalName();
+ 	return true;
+ }
+ 
+@@ -285,6 +304,7 @@ void DeclarationRegistrationHelper::endVisit(StructDefinition&)
+ bool DeclarationRegistrationHelper::visit(EnumDefinition& _enum)
+ {
+ 	registerDeclaration(_enum, true);
++	_enum.annotation().canonicalName = currentCanonicalName();
+ 	return true;
+ }
+ 
+@@ -400,5 +420,21 @@ void DeclarationRegistrationHelper::registerDeclaration(Declaration& _declaratio
+ 		enterNewSubScope(_declaration);
+ }
+ 
++string DeclarationRegistrationHelper::currentCanonicalName() const
++{
++	string ret;
++	for (
++		Declaration const* scope = m_currentScope;
++		scope != nullptr;
++		scope = m_scopes[scope].enclosingDeclaration()
++	)
++	{
++		if (!ret.empty())
++			ret = "." + ret;
++		ret = scope->name() + ret;
++	}
++	return ret;
++}
++
+ }
+ }
+diff --git a/libsolidity/NameAndTypeResolver.h b/libsolidity/NameAndTypeResolver.h
+index d28671ed..f5f4c6ce 100644
+--- a/libsolidity/NameAndTypeResolver.h
++++ b/libsolidity/NameAndTypeResolver.h
+@@ -36,9 +36,8 @@ namespace solidity
+ {
+ 
+ /**
+- * Resolves name references, types and checks types of all expressions.
+- * Specifically, it checks that all operations are valid for the inferred types.
+- * An exception is throw on the first error.
++ * Resolves name references, typenames and sets the (explicitly given) types for all variable
++ * declarations.
+  */
+ class NameAndTypeResolver: private boost::noncopyable
+ {
+@@ -59,7 +58,12 @@ public:
+ 
+ 	/// Resolves a name in the "current" scope. Should only be called during the initial
+ 	/// resolving phase.
+-	std::vector<Declaration const*> nameFromCurrentScope(ASTString const& _name, bool _recursive = true);
++	std::vector<Declaration const*> nameFromCurrentScope(ASTString const& _name, bool _recursive = true) const;
++
++	/// Resolves a path starting from the "current" scope. Should only be called during the initial
++	/// resolving phase.
++	/// @note Returns a null pointer if any component in the path was not unique or not found.
++	Declaration const* pathFromCurrentScope(std::vector<ASTString> const& _path, bool _recursive = true) const;
+ 
+ 	/// returns the vector of declarations without repetitions
+ 	static std::vector<Declaration const*> cleanedDeclarations(
+@@ -119,6 +123,9 @@ private:
+ 	void closeCurrentScope();
+ 	void registerDeclaration(Declaration& _declaration, bool _opensScope);
+ 
++	/// @returns the canonical name of the current scope.
++	std::string currentCanonicalName() const;
++
+ 	std::map<ASTNode const*, DeclarationContainer>& m_scopes;
+ 	Declaration const* m_currentScope;
+ 	VariableScope* m_currentFunction;
+diff --git a/libsolidity/Parser.cpp b/libsolidity/Parser.cpp
+index 3fbe4d68..94e9c0ea 100644
+--- a/libsolidity/Parser.cpp
++++ b/libsolidity/Parser.cpp
+@@ -274,9 +274,17 @@ ASTPointer<FunctionDefinition> Parser::parseFunctionDefinition(ASTString const*
+ 	else
+ 		m_scanner->next(); // just consume the ';'
+ 	bool const c_isConstructor = (_contractName && *name == *_contractName);
+-	return nodeFactory.createNode<FunctionDefinition>(name, visibility, c_isConstructor, docstring,
+-													  parameters, isDeclaredConst, modifiers,
+-													  returnParameters, block);
++	return nodeFactory.createNode<FunctionDefinition>(
++		name,
++		visibility,
++		c_isConstructor,
++		docstring,
++		parameters,
++		isDeclaredConst,
++		modifiers,
++		returnParameters,
++		block
++	);
+ }
+ 
+ ASTPointer<StructDefinition> Parser::parseStructDefinition()
+@@ -514,7 +522,14 @@ ASTPointer<TypeName> Parser::parseTypeName(bool _allowVar)
+ 	{
+ 		ASTNodeFactory nodeFactory(*this);
+ 		nodeFactory.markEndPosition();
+-		type = nodeFactory.createNode<UserDefinedTypeName>(expectIdentifierToken());
++		vector<ASTString> identifierPath{*expectIdentifierToken()};
++		while (m_scanner->currentToken() == Token::Period)
++		{
++			m_scanner->next();
++			nodeFactory.markEndPosition();
++			identifierPath.push_back(*expectIdentifierToken());
++		}
++		type = nodeFactory.createNode<UserDefinedTypeName>(identifierPath);
+ 	}
+ 	else
+ 		BOOST_THROW_EXCEPTION(createParserError("Expected type name"));
+@@ -753,7 +768,8 @@ ASTPointer<Statement> Parser::parseSimpleStatement()
+ }
+ 
+ ASTPointer<VariableDeclarationStatement> Parser::parseVariableDeclarationStatement(
+-	ASTPointer<TypeName> const& _lookAheadArrayType)
++	ASTPointer<TypeName> const& _lookAheadArrayType
++)
+ {
+ 	VarDeclParserOptions options;
+ 	options.allowVar = true;
+@@ -765,14 +781,16 @@ ASTPointer<VariableDeclarationStatement> Parser::parseVariableDeclarationStateme
+ }
+ 
+ ASTPointer<ExpressionStatement> Parser::parseExpressionStatement(
+-	ASTPointer<Expression> const& _lookAheadIndexAccessStructure)
++	ASTPointer<Expression> const& _lookAheadIndexAccessStructure
++)
+ {
+ 	ASTPointer<Expression> expression = parseExpression(_lookAheadIndexAccessStructure);
+ 	return ASTNodeFactory(*this, expression).createNode<ExpressionStatement>(expression);
+ }
+ 
+ ASTPointer<Expression> Parser::parseExpression(
+-		ASTPointer<Expression> const& _lookAheadIndexAccessStructure)
++	ASTPointer<Expression> const& _lookAheadIndexAccessStructure
++)
+ {
+ 	ASTPointer<Expression> expression = parseBinaryExpression(4, _lookAheadIndexAccessStructure);
+ 	if (!Token::isAssignmentOp(m_scanner->currentToken()))
+@@ -784,8 +802,10 @@ ASTPointer<Expression> Parser::parseExpression(
+ 	return nodeFactory.createNode<Assignment>(expression, assignmentOperator, rightHandSide);
+ }
+ 
+-ASTPointer<Expression> Parser::parseBinaryExpression(int _minPrecedence,
+-	ASTPointer<Expression> const& _lookAheadIndexAccessStructure)
++ASTPointer<Expression> Parser::parseBinaryExpression(
++	int _minPrecedence,
++	ASTPointer<Expression> const& _lookAheadIndexAccessStructure
++)
+ {
+ 	ASTPointer<Expression> expression = parseUnaryExpression(_lookAheadIndexAccessStructure);
+ 	ASTNodeFactory nodeFactory(*this, expression);
+@@ -803,7 +823,8 @@ ASTPointer<Expression> Parser::parseBinaryExpression(int _minPrecedence,
+ }
+ 
+ ASTPointer<Expression> Parser::parseUnaryExpression(
+-	ASTPointer<Expression> const& _lookAheadIndexAccessStructure)
++	ASTPointer<Expression> const& _lookAheadIndexAccessStructure
++)
+ {
+ 	ASTNodeFactory nodeFactory = _lookAheadIndexAccessStructure ?
+ 		ASTNodeFactory(*this, _lookAheadIndexAccessStructure) : ASTNodeFactory(*this);
+@@ -830,7 +851,8 @@ ASTPointer<Expression> Parser::parseUnaryExpression(
+ }
+ 
+ ASTPointer<Expression> Parser::parseLeftHandSideExpression(
+-	ASTPointer<Expression> const& _lookAheadIndexAccessStructure)
++	ASTPointer<Expression> const& _lookAheadIndexAccessStructure
++)
+ {
+ 	ASTNodeFactory nodeFactory = _lookAheadIndexAccessStructure ?
+ 		ASTNodeFactory(*this, _lookAheadIndexAccessStructure) : ASTNodeFactory(*this);
+@@ -1014,12 +1036,14 @@ Parser::LookAheadInfo Parser::peekStatementType() const
+ }
+ 
+ ASTPointer<TypeName> Parser::typeNameIndexAccessStructure(
+-	ASTPointer<PrimaryExpression> const& _primary, vector<pair<ASTPointer<Expression>, SourceLocation>> const& _indices)
++	ASTPointer<PrimaryExpression> const& _primary,
++	vector<pair<ASTPointer<Expression>, SourceLocation>> const& _indices
++)
+ {
+ 	ASTNodeFactory nodeFactory(*this, _primary);
+ 	ASTPointer<TypeName> type;
+ 	if (auto identifier = dynamic_cast<Identifier const*>(_primary.get()))
+-		type = nodeFactory.createNode<UserDefinedTypeName>(make_shared<ASTString>(identifier->name()));
++		type = nodeFactory.createNode<UserDefinedTypeName>(vector<ASTString>{identifier->name()});
+ 	else if (auto typeName = dynamic_cast<ElementaryTypeNameExpression const*>(_primary.get()))
+ 		type = nodeFactory.createNode<ElementaryTypeName>(typeName->typeToken());
+ 	else
+@@ -1033,7 +1057,9 @@ ASTPointer<TypeName> Parser::typeNameIndexAccessStructure(
+ }
+ 
+ ASTPointer<Expression> Parser::expressionFromIndexAccessStructure(
+-	ASTPointer<PrimaryExpression> const& _primary, vector<pair<ASTPointer<Expression>, SourceLocation>> const& _indices)
++	ASTPointer<PrimaryExpression> const& _primary,
++	vector<pair<ASTPointer<Expression>, SourceLocation>> const& _indices
++)
+ {
+ 	ASTNodeFactory nodeFactory(*this, _primary);
+ 	ASTPointer<Expression> expression(_primary);
+diff --git a/libsolidity/Parser.h b/libsolidity/Parser.h
+index 79eb73f0..043d022b 100644
+--- a/libsolidity/Parser.h
++++ b/libsolidity/Parser.h
+@@ -90,17 +90,23 @@ private:
+ 	/// A "simple statement" can be a variable declaration statement or an expression statement.
+ 	ASTPointer<Statement> parseSimpleStatement();
+ 	ASTPointer<VariableDeclarationStatement> parseVariableDeclarationStatement(
+-		ASTPointer<TypeName> const& _lookAheadArrayType = ASTPointer<TypeName>());
++		ASTPointer<TypeName> const& _lookAheadArrayType = ASTPointer<TypeName>()
++	);
+ 	ASTPointer<ExpressionStatement> parseExpressionStatement(
+-		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>());
++		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>()
++	);
+ 	ASTPointer<Expression> parseExpression(
+-		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>());
++		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>()
++	);
+ 	ASTPointer<Expression> parseBinaryExpression(int _minPrecedence = 4,
+-		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>());
++		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>()
++	);
+ 	ASTPointer<Expression> parseUnaryExpression(
+-		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>());
++		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>()
++	);
+ 	ASTPointer<Expression> parseLeftHandSideExpression(
+-		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>());
++		ASTPointer<Expression> const& _lookAheadIndexAccessStructure = ASTPointer<Expression>()
++	);
+ 	ASTPointer<Expression> parsePrimaryExpression();
+ 	std::vector<ASTPointer<Expression>> parseFunctionCallListArguments();
+ 	std::pair<std::vector<ASTPointer<Expression>>, std::vector<ASTPointer<ASTString>>> parseFunctionCallArguments();
+@@ -122,11 +128,13 @@ private:
+ 	/// Returns a typename parsed in look-ahead fashion from something like "a[8][2**70]".
+ 	ASTPointer<TypeName> typeNameIndexAccessStructure(
+ 		ASTPointer<PrimaryExpression> const& _primary,
+-		std::vector<std::pair<ASTPointer<Expression>, SourceLocation>> const& _indices);
++		std::vector<std::pair<ASTPointer<Expression>, SourceLocation>> const& _indices
++	);
+ 	/// Returns an expression parsed in look-ahead fashion from something like "a[8][2**70]".
+ 	ASTPointer<Expression> expressionFromIndexAccessStructure(
+ 		ASTPointer<PrimaryExpression> const& _primary,
+-		std::vector<std::pair<ASTPointer<Expression>, SourceLocation>> const& _indices);
++		std::vector<std::pair<ASTPointer<Expression>, SourceLocation>> const& _indices
++	);
+ 	/// If current token value is not _value, throw exception otherwise advance token.
+ 	void expectToken(Token::Value _value);
+ 	Token::Value expectAssignmentOperator();
+diff --git a/libsolidity/ReferencesResolver.cpp b/libsolidity/ReferencesResolver.cpp
+index 623ac8f7..32c1728f 100644
+--- a/libsolidity/ReferencesResolver.cpp
++++ b/libsolidity/ReferencesResolver.cpp
+@@ -54,20 +54,13 @@ bool ReferencesResolver::visit(Return const& _return)
+ 
+ bool ReferencesResolver::visit(UserDefinedTypeName const& _typeName)
+ {
+-	auto declarations = m_resolver.nameFromCurrentScope(_typeName.name());
+-	if (declarations.empty())
++	Declaration const* declaration = m_resolver.pathFromCurrentScope(_typeName.namePath());
++	if (!declaration)
+ 		BOOST_THROW_EXCEPTION(
+ 			DeclarationError() <<
+ 			errinfo_sourceLocation(_typeName.location()) <<
+-			errinfo_comment("Undeclared identifier.")
++			errinfo_comment("Identifier not found or not unique.")
+ 		);
+-	else if (declarations.size() > 1)
+-		BOOST_THROW_EXCEPTION(
+-			DeclarationError() <<
+-			errinfo_sourceLocation(_typeName.location()) <<
+-			errinfo_comment("Duplicate identifier.")
+-		);
+-	Declaration const* declaration = *declarations.begin();
+ 	_typeName.annotation().referencedDeclaration = declaration;
+ 	return true;
+ }
+@@ -106,27 +99,43 @@ void ReferencesResolver::endVisit(VariableDeclaration const& _variable)
+ 		// References are forced to calldata for external function parameters (not return)
+ 		// and memory for parameters (also return) of publicly visible functions.
+ 		// They default to memory for function parameters and storage for local variables.
++		// As an exception, "storage" is allowed for library functions.
+ 		if (auto ref = dynamic_cast<ReferenceType const*>(type.get()))
+ 		{
+ 			if (_variable.isExternalCallableParameter())
+ 			{
+-				// force location of external function parameters (not return) to calldata
+-				if (loc != Location::Default)
+-					BOOST_THROW_EXCEPTION(_variable.createTypeError(
+-						"Location has to be calldata for external functions "
+-						"(remove the \"memory\" or \"storage\" keyword)."
+-					));
+-				type = ref->copyForLocation(DataLocation::CallData, true);
++				auto const& contract = dynamic_cast<ContractDefinition const&>(*_variable.scope()->scope());
++				if (contract.isLibrary())
++				{
++					if (loc == Location::Memory)
++						BOOST_THROW_EXCEPTION(_variable.createTypeError(
++							"Location has to be calldata or storage for external "
++							"library functions (remove the \"memory\" keyword)."
++						));
++				}
++				else
++				{
++					// force location of external function parameters (not return) to calldata
++					if (loc != Location::Default)
++						BOOST_THROW_EXCEPTION(_variable.createTypeError(
++							"Location has to be calldata for external functions "
++							"(remove the \"memory\" or \"storage\" keyword)."
++						));
++				}
++				if (loc == Location::Default)
++					type = ref->copyForLocation(DataLocation::CallData, true);
+ 			}
+ 			else if (_variable.isCallableParameter() && _variable.scope()->isPublic())
+ 			{
++				auto const& contract = dynamic_cast<ContractDefinition const&>(*_variable.scope()->scope());
+ 				// force locations of public or external function (return) parameters to memory
+-				if (loc == VariableDeclaration::Location::Storage)
++				if (loc == Location::Storage && !contract.isLibrary())
+ 					BOOST_THROW_EXCEPTION(_variable.createTypeError(
+ 						"Location has to be memory for publicly visible functions "
+ 						"(remove the \"storage\" keyword)."
+ 					));
+-				type = ref->copyForLocation(DataLocation::Memory, true);
++				if (loc == Location::Default || !contract.isLibrary())
++					type = ref->copyForLocation(DataLocation::Memory, true);
+ 			}
+ 			else
+ 			{
+diff --git a/libsolidity/TypeChecker.cpp b/libsolidity/TypeChecker.cpp
+index f453e2fa..5bbbd072 100644
+--- a/libsolidity/TypeChecker.cpp
++++ b/libsolidity/TypeChecker.cpp
+@@ -43,8 +43,14 @@ bool TypeChecker::checkTypeRequirements(const ContractDefinition& _contract)
+ 		if (m_errors.empty())
+ 			throw; // Something is weird here, rather throw again.
+ 	}
+-
+-	return m_errors.empty();
++	bool success = true;
++	for (auto const& it: m_errors)
++		if (!dynamic_cast<Warning const*>(it.get()))
++		{
++			success = false;
++			break;
++		}
++	return success;
+ }
+ 
+ TypePointer const& TypeChecker::type(Expression const& _expression) const
+@@ -293,7 +299,7 @@ void TypeChecker::checkContractExternalTypeClashes(ContractDefinition const& _co
+ 			if (f->isPartOfExternalInterface())
+ 			{
+ 				auto functionType = make_shared<FunctionType>(*f);
+-				externalDeclarations[functionType->externalSignature(f->name())].push_back(
++				externalDeclarations[functionType->externalSignature()].push_back(
+ 					make_pair(f.get(), functionType)
+ 				);
+ 			}
+@@ -301,7 +307,7 @@ void TypeChecker::checkContractExternalTypeClashes(ContractDefinition const& _co
+ 			if (v->isPartOfExternalInterface())
+ 			{
+ 				auto functionType = make_shared<FunctionType>(*v);
+-				externalDeclarations[functionType->externalSignature(v->name())].push_back(
++				externalDeclarations[functionType->externalSignature()].push_back(
+ 					make_pair(v.get(), functionType)
+ 				);
+ 			}
+@@ -391,12 +397,13 @@ bool TypeChecker::visit(StructDefinition const& _struct)
+ 
+ bool TypeChecker::visit(FunctionDefinition const& _function)
+ {
++	bool isLibraryFunction = dynamic_cast<ContractDefinition const&>(*_function.scope()).isLibrary();
+ 	for (ASTPointer<VariableDeclaration> const& var: _function.parameters() + _function.returnParameters())
+ 	{
+ 		if (!type(*var)->canLiveOutsideStorage())
+ 			typeError(*var, "Type is required to live outside storage.");
+-		if (_function.visibility() >= FunctionDefinition::Visibility::Public && !(type(*var)->externalType()))
+-			typeError(*var, "Internal type is not allowed for public and external functions.");
++		if (_function.visibility() >= FunctionDefinition::Visibility::Public && !(type(*var)->interfaceType(isLibraryFunction)))
++			fatalTypeError(*var, "Internal type is not allowed for public or external functions.");
+ 	}
+ 	for (ASTPointer<ModifierInvocation> const& modifier: _function.modifiers())
+ 		visitManually(
+@@ -443,6 +450,18 @@ bool TypeChecker::visit(VariableDeclaration const& _variable)
+ 	{
+ 		if (_variable.value())
+ 			expectType(*_variable.value(), *varType);
++		else
++		{
++			if (auto ref = dynamic_cast<ReferenceType const *>(varType.get()))
++				if (ref->dataStoredIn(DataLocation::Storage) && _variable.isLocalVariable() && !_variable.isCallableParameter())
++				{
++					auto err = make_shared<Warning>();
++					*err <<
++						errinfo_sourceLocation(_variable.location()) <<
++						errinfo_comment("Uninitialized storage pointer. Did you mean '<type> memory " + _variable.name() + "'?");
++					m_errors.push_back(err);
++				}
++		}
+ 	}
+ 	else
+ 	{
+@@ -472,7 +491,7 @@ bool TypeChecker::visit(VariableDeclaration const& _variable)
+ 	}
+ 	else if (
+ 		_variable.visibility() >= VariableDeclaration::Visibility::Public &&
+-		!FunctionType(_variable).externalType()
++		!FunctionType(_variable).interfaceFunctionType()
+ 	)
+ 		typeError(_variable, "Internal type is not allowed for public state variables.");
+ 	return false;
+@@ -535,11 +554,13 @@ bool TypeChecker::visit(EventDefinition const& _eventDef)
+ 	{
+ 		if (var->isIndexed())
+ 			numIndexed++;
+-		if (numIndexed > 3)
++		if (_eventDef.isAnonymous() && numIndexed > 4)
++			typeError(_eventDef, "More than 4 indexed arguments for anonymous event.");
++		else if (!_eventDef.isAnonymous() && numIndexed > 3)
+ 			typeError(_eventDef, "More than 3 indexed arguments for event.");
+ 		if (!type(*var)->canLiveOutsideStorage())
+ 			typeError(*var, "Type is required to live outside storage.");
+-		if (!type(*var)->externalType())
++		if (!type(*var)->interfaceType(false))
+ 			typeError(*var, "Internal type is not allowed as event parameter type.");
+ 	}
+ 	return false;
+@@ -803,10 +824,15 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
+ 	{
+ 		// call by positional arguments
+ 		for (size_t i = 0; i < arguments.size(); ++i)
+-			if (
+-				!functionType->takesArbitraryParameters() &&
+-				!type(*arguments[i])->isImplicitlyConvertibleTo(*parameterTypes[i])
+-			)
++		{
++			auto const& argType = type(*arguments[i]);
++			if (functionType->takesArbitraryParameters())
++			{
++				if (auto t = dynamic_cast<IntegerConstantType const*>(argType.get()))
++					if (!t->integerType())
++						typeError(*arguments[i], "Integer constant too large.");
++			}
++			else if (!type(*arguments[i])->isImplicitlyConvertibleTo(*parameterTypes[i]))
+ 				typeError(
+ 					*arguments[i],
+ 					"Invalid type for argument in function call. "
+@@ -816,6 +842,7 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
+ 					parameterTypes[i]->toString() +
+ 					" requested."
+ 				);
++		}
+ 	}
+ 	else
+ 	{
+@@ -887,12 +914,15 @@ void TypeChecker::endVisit(NewExpression const& _newExpression)
+ 		typeError(_newExpression, "Trying to create an instance of an abstract contract.");
+ 
+ 	auto scopeContract = _newExpression.contractName().annotation().contractScope;
+-	auto const& bases = contract->annotation().linearizedBaseContracts;
+-	solAssert(!bases.empty(), "Linearized base contracts not yet available.");
+-	if (find(bases.begin(), bases.end(), scopeContract) != bases.end())
++	scopeContract->annotation().contractDependencies.insert(contract);
++	solAssert(
++		!contract->annotation().linearizedBaseContracts.empty(),
++		"Linearized base contracts not yet available."
++	);
++	if (contractDependenciesAreCyclic(*scopeContract))
+ 		typeError(
+ 			_newExpression,
+-			"Circular reference for contract creation: cannot create instance of derived or same contract."
++			"Circular reference for contract creation (cannot create instance of derived or same contract)."
+ 		);
+ 
+ 	auto contractType = make_shared<ContractType>(*contract);
+@@ -1097,6 +1127,22 @@ void TypeChecker::endVisit(Literal const& _literal)
+ 		fatalTypeError(_literal, "Invalid literal value.");
+ }
+ 
++bool TypeChecker::contractDependenciesAreCyclic(
++	ContractDefinition const& _contract,
++	std::set<ContractDefinition const*> const& _seenContracts
++) const
++{
++	// Naive depth-first search that remembers nodes already seen.
++	if (_seenContracts.count(&_contract))
++		return true;
++	set<ContractDefinition const*> seen(_seenContracts);
++	seen.insert(&_contract);
++	for (auto const* c: _contract.annotation().contractDependencies)
++		if (contractDependenciesAreCyclic(*c, seen))
++			return true;
++	return false;
++}
++
+ Declaration const& TypeChecker::dereference(Identifier const& _identifier)
+ {
+ 	solAssert(!!_identifier.annotation().referencedDeclaration, "Declaration not stored.");
+diff --git a/libsolidity/TypeChecker.h b/libsolidity/TypeChecker.h
+index cc539e22..97262ed0 100644
+--- a/libsolidity/TypeChecker.h
++++ b/libsolidity/TypeChecker.h
+@@ -43,10 +43,10 @@ class TypeChecker: private ASTConstVisitor
+ {
+ public:
+ 	/// Performs type checking on the given contract and all of its sub-nodes.
+-	/// @returns true iff all checks passed.
++	/// @returns true iff all checks passed. Note even if all checks passed, errors() can still contain warnings
+ 	bool checkTypeRequirements(ContractDefinition const& _contract);
+ 
+-	/// @returns the list of errors found during type checking.
++	/// @returns the list of errors and warnings found during type checking.
+ 	std::vector<std::shared_ptr<Error const>> const& errors() const { return m_errors; }
+ 
+ 	/// @returns the type of an expression and asserts that it is present.
+@@ -57,6 +57,7 @@ public:
+ 
+ 	/// Adds a new error to the list of errors.
+ 	void typeError(ASTNode const& _node, std::string const& _description);
++
+ 	/// Adds a new error to the list of errors and throws to abort type checking.
+ 	void fatalTypeError(ASTNode const& _node, std::string const& _description);
+ 
+@@ -98,6 +99,11 @@ private:
+ 	virtual void endVisit(ElementaryTypeNameExpression const& _expr) override;
+ 	virtual void endVisit(Literal const& _literal) override;
+ 
++	bool contractDependenciesAreCyclic(
++		ContractDefinition const& _contract,
++		std::set<ContractDefinition const*> const& _seenContracts = std::set<ContractDefinition const*>()
++	) const;
++
+ 	/// @returns the referenced declaration and throws on error.
+ 	Declaration const& dereference(Identifier const& _identifier);
+ 
+diff --git a/libsolidity/Types.cpp b/libsolidity/Types.cpp
+index 435385e6..f0c67bba 100644
+--- a/libsolidity/Types.cpp
++++ b/libsolidity/Types.cpp
+@@ -839,11 +839,49 @@ string ArrayType::toString(bool _short) const
+ 	return ret;
+ }
+ 
+-TypePointer ArrayType::externalType() const
++string ArrayType::canonicalName(bool _addDataLocation) const
+ {
++	string ret;
++	if (isString())
++		ret = "string";
++	else if (isByteArray())
++		ret = "bytes";
++	else
++	{
++		ret = baseType()->canonicalName(false) + "[";
++		if (!isDynamicallySized())
++			ret += length().str();
++		ret += "]";
++	}
++	if (_addDataLocation && location() == DataLocation::Storage)
++		ret += " storage";
++	return ret;
++}
++
++TypePointer ArrayType::encodingType() const
++{
++	if (location() == DataLocation::Storage)
++		return make_shared<IntegerType>(256);
++	else
++		return this->copyForLocation(DataLocation::Memory, true);
++}
++
++TypePointer ArrayType::decodingType() const
++{
++	if (location() == DataLocation::Storage)
++		return make_shared<IntegerType>(256);
++	else
++		return shared_from_this();
++}
++
++TypePointer ArrayType::interfaceType(bool _inLibrary) const
++{
++	if (_inLibrary && location() == DataLocation::Storage)
++		return shared_from_this();
++
+ 	if (m_arrayKind != ArrayKind::Ordinary)
+ 		return this->copyForLocation(DataLocation::Memory, true);
+-	TypePointer baseExt = m_baseType->externalType();
++	TypePointer baseExt = m_baseType->interfaceType(_inLibrary);
+ 	if (!baseExt)
+ 		return TypePointer();
+ 	if (m_baseType->category() == Category::Array && m_baseType->isDynamicallySized())
+@@ -893,6 +931,11 @@ string ContractType::toString(bool) const
+ 		m_contract.name();
+ }
+ 
++string ContractType::canonicalName(bool) const
++{
++	return m_contract.annotation().canonicalName;
++}
++
+ MemberList const& ContractType::members() const
+ {
+ 	// We need to lazy-initialize it because of recursive references.
+@@ -1059,6 +1102,14 @@ MemberList const& StructType::members() const
+ 	return *m_members;
+ }
+ 
++TypePointer StructType::interfaceType(bool _inLibrary) const
++{
++	if (_inLibrary && location() == DataLocation::Storage)
++		return shared_from_this();
++	else
++		return TypePointer();
++}
++
+ TypePointer StructType::copyForLocation(DataLocation _location, bool _isPointer) const
+ {
+ 	auto copy = make_shared<StructType>(m_struct, _location);
+@@ -1066,6 +1117,14 @@ TypePointer StructType::copyForLocation(DataLocation _location, bool _isPointer)
+ 	return copy;
+ }
+ 
++string StructType::canonicalName(bool _addDataLocation) const
++{
++	string ret = m_struct.annotation().canonicalName;
++	if (_addDataLocation && location() == DataLocation::Storage)
++		ret += " storage";
++	return ret;
++}
++
+ FunctionTypePointer StructType::constructorType() const
+ {
+ 	TypePointers paramTypes;
+@@ -1141,6 +1200,11 @@ string EnumType::toString(bool) const
+ 	return string("enum ") + m_enum.name();
+ }
+ 
++string EnumType::canonicalName(bool) const
++{
++	return m_enum.annotation().canonicalName;
++}
++
+ bool EnumType::isExplicitlyConvertibleTo(Type const& _convertTo) const
+ {
+ 	return _convertTo.category() == category() || _convertTo.category() == Category::Integer;
+@@ -1330,21 +1394,25 @@ unsigned FunctionType::sizeOnStack() const
+ 	return size;
+ }
+ 
+-FunctionTypePointer FunctionType::externalFunctionType() const
++FunctionTypePointer FunctionType::interfaceFunctionType() const
+ {
++	// Note that m_declaration might also be a state variable!
++	solAssert(m_declaration, "Declaration needed to determine interface function type.");
++	bool isLibraryFunction = dynamic_cast<ContractDefinition const&>(*m_declaration->scope()).isLibrary();
++
+ 	TypePointers paramTypes;
+ 	TypePointers retParamTypes;
+ 
+ 	for (auto type: m_parameterTypes)
+ 	{
+-		if (auto ext = type->externalType())
++		if (auto ext = type->interfaceType(isLibraryFunction))
+ 			paramTypes.push_back(ext);
+ 		else
+ 			return FunctionTypePointer();
+ 	}
+ 	for (auto type: m_returnParameterTypes)
+ 	{
+-		if (auto ext = type->externalType())
++		if (auto ext = type->interfaceType(isLibraryFunction))
+ 			retParamTypes.push_back(ext);
+ 		else
+ 			return FunctionTypePointer();
+@@ -1452,23 +1520,21 @@ bool FunctionType::isBareCall() const
+ 	}
+ }
+ 
+-string FunctionType::externalSignature(std::string const& _name) const
++string FunctionType::externalSignature() const
+ {
+-	std::string funcName = _name;
+-	if (_name == "")
+-	{
+-		solAssert(m_declaration != nullptr, "Function type without name needs a declaration");
+-		funcName = m_declaration->name();
+-	}
+-	string ret = funcName + "(";
++	solAssert(m_declaration != nullptr, "External signature of function needs declaration");
++
++	bool _inLibrary = dynamic_cast<ContractDefinition const&>(*m_declaration->scope()).isLibrary();
++
++	string ret = m_declaration->name() + "(";
+ 
+-	FunctionTypePointer external = externalFunctionType();
++	FunctionTypePointer external = interfaceFunctionType();
+ 	solAssert(!!external, "External function type requested.");
+ 	TypePointers externalParameterTypes = external->parameterTypes();
+ 	for (auto it = externalParameterTypes.cbegin(); it != externalParameterTypes.cend(); ++it)
+ 	{
+ 		solAssert(!!(*it), "Parameter should have external type");
+-		ret += (*it)->toString(true) + (it + 1 == externalParameterTypes.cend() ? "" : ",");
++		ret += (*it)->canonicalName(_inLibrary) + (it + 1 == externalParameterTypes.cend() ? "" : ",");
+ 	}
+ 
+ 	return ret + ")";
+@@ -1536,20 +1602,20 @@ FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary) const
+ 	);
+ }
+ 
+-vector<string> const FunctionType::parameterTypeNames() const
++vector<string> const FunctionType::parameterTypeNames(bool _addDataLocation) const
+ {
+ 	vector<string> names;
+ 	for (TypePointer const& t: m_parameterTypes)
+-		names.push_back(t->toString(true));
++		names.push_back(t->canonicalName(_addDataLocation));
+ 
+ 	return names;
+ }
+ 
+-vector<string> const FunctionType::returnParameterTypeNames() const
++vector<string> const FunctionType::returnParameterTypeNames(bool _addDataLocation) const
+ {
+ 	vector<string> names;
+ 	for (TypePointer const& t: m_returnParameterTypes)
+-		names.push_back(t->toString(true));
++		names.push_back(t->canonicalName(_addDataLocation));
+ 
+ 	return names;
+ }
+@@ -1576,6 +1642,11 @@ string MappingType::toString(bool _short) const
+ 	return "mapping(" + keyType()->toString(_short) + " => " + valueType()->toString(_short) + ")";
+ }
+ 
++string MappingType::canonicalName(bool) const
++{
++	return "mapping(" + keyType()->canonicalName(false) + " => " + valueType()->canonicalName(false) + ")";
++}
++
+ u256 VoidType::storageSize() const
+ {
+ 	BOOST_THROW_EXCEPTION(
+diff --git a/libsolidity/Types.h b/libsolidity/Types.h
+index 73111e48..7a65ca92 100644
+--- a/libsolidity/Types.h
++++ b/libsolidity/Types.h
+@@ -218,6 +218,9 @@ public:
+ 
+ 	virtual std::string toString(bool _short) const = 0;
+ 	std::string toString() const { return toString(false); }
++	/// @returns the canonical name of this type for use in function signatures.
++	/// @param _addDataLocation if true, includes data location for reference types if it is "storage".
++	virtual std::string canonicalName(bool /*_addDataLocation*/) const { return toString(true); }
+ 	virtual u256 literalValue(Literal const*) const
+ 	{
+ 		BOOST_THROW_EXCEPTION(
+@@ -226,9 +229,18 @@ public:
+ 		);
+ 	}
+ 
+-	/// @returns a type suitable for outside of Solidity, i.e. for contract types it returns address.
++	/// @returns a (simpler) type that is encoded in the same way for external function calls.
++	/// This for example returns address for contract types.
+ 	/// If there is no such type, returns an empty shared pointer.
+-	virtual TypePointer externalType() const { return TypePointer(); }
++	virtual TypePointer encodingType() const { return TypePointer(); }
++	/// @returns a (simpler) type that is used when decoding this type in calldata.
++	virtual TypePointer decodingType() const { return encodingType(); }
++	/// @returns a type that will be used outside of Solidity for e.g. function signatures.
++	/// This for example returns address for contract types.
++	/// If there is no such type, returns an empty shared pointer.
++	/// @param _inLibrary if set, returns types as used in a library, e.g. struct and contract types
++	/// are returned without modification.
++	virtual TypePointer interfaceType(bool /*_inLibrary*/) const { return TypePointer(); }
+ 
+ protected:
+ 	/// Convenience object used when returning an empty member list.
+@@ -264,7 +276,8 @@ public:
+ 
+ 	virtual std::string toString(bool _short) const override;
+ 
+-	virtual TypePointer externalType() const override { return shared_from_this(); }
++	virtual TypePointer encodingType() const override { return shared_from_this(); }
++	virtual TypePointer interfaceType(bool) const override { return shared_from_this(); }
+ 
+ 	int numBits() const { return m_bits; }
+ 	bool isAddress() const { return m_modifier == Modifier::Address; }
+@@ -369,7 +382,8 @@ public:
+ 	virtual bool isValueType() const override { return true; }
+ 
+ 	virtual std::string toString(bool) const override { return "bytes" + dev::toString(m_bytes); }
+-	virtual TypePointer externalType() const override { return shared_from_this(); }
++	virtual TypePointer encodingType() const override { return shared_from_this(); }
++	virtual TypePointer interfaceType(bool) const override { return shared_from_this(); }
+ 
+ 	int numBytes() const { return m_bytes; }
+ 
+@@ -395,7 +409,8 @@ public:
+ 
+ 	virtual std::string toString(bool) const override { return "bool"; }
+ 	virtual u256 literalValue(Literal const* _literal) const override;
+-	virtual TypePointer externalType() const override { return shared_from_this(); }
++	virtual TypePointer encodingType() const override { return shared_from_this(); }
++	virtual TypePointer interfaceType(bool) const override { return shared_from_this(); }
+ };
+ 
+ /**
+@@ -489,11 +504,14 @@ public:
+ 	virtual bool canLiveOutsideStorage() const override { return m_baseType->canLiveOutsideStorage(); }
+ 	virtual unsigned sizeOnStack() const override;
+ 	virtual std::string toString(bool _short) const override;
++	virtual std::string canonicalName(bool _addDataLocation) const override;
+ 	virtual MemberList const& members() const override
+ 	{
+ 		return isString() ? EmptyMemberList : s_arrayTypeMemberList;
+ 	}
+-	virtual TypePointer externalType() const override;
++	virtual TypePointer encodingType() const override;
++	virtual TypePointer decodingType() const override;
++	virtual TypePointer interfaceType(bool _inLibrary) const override;
+ 
+ 	/// @returns true if this is a byte array or a string
+ 	bool isByteArray() const { return m_arrayKind != ArrayKind::Ordinary; }
+@@ -534,18 +552,23 @@ public:
+ 	virtual bool operator==(Type const& _other) const override;
+ 	virtual unsigned calldataEncodedSize(bool _padded ) const override
+ 	{
+-		return externalType()->calldataEncodedSize(_padded);
++		return encodingType()->calldataEncodedSize(_padded);
+ 	}
+ 	virtual unsigned storageBytes() const override { return 20; }
+ 	virtual bool canLiveOutsideStorage() const override { return true; }
+ 	virtual bool isValueType() const override { return true; }
+ 	virtual std::string toString(bool _short) const override;
++	virtual std::string canonicalName(bool _addDataLocation) const override;
+ 
+ 	virtual MemberList const& members() const override;
+-	virtual TypePointer externalType() const override
++	virtual TypePointer encodingType() const override
+ 	{
+ 		return std::make_shared<IntegerType>(160, IntegerType::Modifier::Address);
+ 	}
++	virtual TypePointer interfaceType(bool _inLibrary) const override
++	{
++		return _inLibrary ? shared_from_this() : encodingType();
++	}
+ 
+ 	bool isSuper() const { return m_super; }
+ 	ContractDefinition const& contractDefinition() const { return m_contract; }
+@@ -566,7 +589,7 @@ private:
+ 	ContractDefinition const& m_contract;
+ 	/// If true, it is the "super" type of the current contract, i.e. it contains only inherited
+ 	/// members.
+-	bool m_super;
++	bool m_super = false;
+ 	/// Type of the constructor, @see constructorType. Lazily initialized.
+ 	mutable FunctionTypePointer m_constructorType;
+ 	/// List of member types, will be lazy-initialized because of recursive references.
+@@ -591,9 +614,16 @@ public:
+ 	virtual std::string toString(bool _short) const override;
+ 
+ 	virtual MemberList const& members() const override;
++	virtual TypePointer encodingType() const override
++	{
++		return location() == DataLocation::Storage ? std::make_shared<IntegerType>(256) : TypePointer();
++	}
++	virtual TypePointer interfaceType(bool _inLibrary) const override;
+ 
+ 	TypePointer copyForLocation(DataLocation _location, bool _isPointer) const override;
+ 
++	virtual std::string canonicalName(bool _addDataLocation) const override;
++
+ 	/// @returns a function that peforms the type conversion between a list of struct members
+ 	/// and a memory struct of this type.
+ 	FunctionTypePointer constructorType() const;
+@@ -624,18 +654,23 @@ public:
+ 	virtual bool operator==(Type const& _other) const override;
+ 	virtual unsigned calldataEncodedSize(bool _padded) const override
+ 	{
+-		return externalType()->calldataEncodedSize(_padded);
++		return encodingType()->calldataEncodedSize(_padded);
+ 	}
+ 	virtual unsigned storageBytes() const override;
+ 	virtual bool canLiveOutsideStorage() const override { return true; }
+ 	virtual std::string toString(bool _short) const override;
++	virtual std::string canonicalName(bool _addDataLocation) const override;
+ 	virtual bool isValueType() const override { return true; }
+ 
+ 	virtual bool isExplicitlyConvertibleTo(Type const& _convertTo) const override;
+-	virtual TypePointer externalType() const override
++	virtual TypePointer encodingType() const override
+ 	{
+ 		return std::make_shared<IntegerType>(8 * int(storageBytes()));
+ 	}
++	virtual TypePointer interfaceType(bool _inLibrary) const override
++	{
++		return _inLibrary ? shared_from_this() : encodingType();
++	}
+ 
+ 	EnumDefinition const& enumDefinition() const { return m_enum; }
+ 	/// @returns the value that the string has in the Enum
+@@ -684,13 +719,6 @@ public:
+ 
+ 	virtual Category category() const override { return Category::Function; }
+ 
+-	/// @returns TypePointer of a new FunctionType object. All input/return parameters are an
+-	/// appropriate external types of input/return parameters of current function.
+-	/// Returns an empty shared pointer if one of the input/return parameters does not have an
+-	/// external type.
+-	FunctionTypePointer externalFunctionType() const;
+-	virtual TypePointer externalType() const override { return externalFunctionType(); }
+-
+ 	/// Creates the type of a function.
+ 	explicit FunctionType(FunctionDefinition const& _function, bool _isInternal = true);
+ 	/// Creates the accessor function type of a state variable.
+@@ -736,10 +764,10 @@ public:
+ 
+ 	TypePointers const& parameterTypes() const { return m_parameterTypes; }
+ 	std::vector<std::string> const& parameterNames() const { return m_parameterNames; }
+-	std::vector<std::string> const parameterTypeNames() const;
++	std::vector<std::string> const parameterTypeNames(bool _addDataLocation) const;
+ 	TypePointers const& returnParameterTypes() const { return m_returnParameterTypes; }
+ 	std::vector<std::string> const& returnParameterNames() const { return m_returnParameterNames; }
+-	std::vector<std::string> const returnParameterTypeNames() const;
++	std::vector<std::string> const returnParameterTypeNames(bool _addDataLocation) const;
+ 
+ 	virtual bool operator==(Type const& _other) const override;
+ 	virtual std::string toString(bool _short) const override;
+@@ -749,6 +777,13 @@ public:
+ 	virtual unsigned sizeOnStack() const override;
+ 	virtual MemberList const& members() const override;
+ 
++	/// @returns TypePointer of a new FunctionType object. All input/return parameters are an
++	/// appropriate external types (i.e. the interfaceType()s) of input/return parameters of
++	/// current function.
++	/// Returns an empty shared pointer if one of the input/return parameters does not have an
++	/// external type.
++	FunctionTypePointer interfaceFunctionType() const;
++
+ 	/// @returns true if this function can take the given argument types (possibly
+ 	/// after implicit conversion).
+ 	bool canTakeArguments(TypePointers const& _arguments) const;
+@@ -759,9 +794,7 @@ public:
+ 	bool isBareCall() const;
+ 	Location const& location() const { return m_location; }
+ 	/// @returns the external signature of this function type given the function name
+-	/// If @a _name is not provided (empty string) then the @c m_declaration member of the
+-	/// function type is used
+-	std::string externalSignature(std::string const& _name = "") const;
++	std::string externalSignature() const;
+ 	/// @returns the external identifier of this function (the hash of the signature).
+ 	u256 externalIdentifier() const;
+ 	Declaration const& declaration() const
+@@ -822,7 +855,16 @@ public:
+ 
+ 	virtual bool operator==(Type const& _other) const override;
+ 	virtual std::string toString(bool _short) const override;
++	virtual std::string canonicalName(bool _addDataLocation) const override;
+ 	virtual bool canLiveOutsideStorage() const override { return false; }
++	virtual TypePointer encodingType() const override
++	{
++		return std::make_shared<IntegerType>(256);
++	}
++	virtual TypePointer interfaceType(bool _inLibrary) const override
++	{
++		return _inLibrary ? shared_from_this() : TypePointer();
++	}
+ 
+ 	TypePointer const& keyType() const { return m_keyType; }
+ 	TypePointer const& valueType() const { return m_valueType; }
+diff --git a/libsolidity/Utils.h b/libsolidity/Utils.h
+index 05c5fa6f..6c8e3b33 100644
+--- a/libsolidity/Utils.h
++++ b/libsolidity/Utils.h
+@@ -23,6 +23,7 @@
+ #pragma once
+ 
+ #include <libdevcore/Assertions.h>
++#include <libsolidity/Exceptions.h>
+ 
+ /// Assertion that throws an InternalCompilerError containing the given description if it is not met.
+ #define solAssert(CONDITION, DESCRIPTION) \
+diff --git a/libsolidity/Version.cpp b/libsolidity/Version.cpp
+index c6b5c509..09a6d84b 100644
+--- a/libsolidity/Version.cpp
++++ b/libsolidity/Version.cpp
+@@ -22,16 +22,19 @@
+ 
+ #include <libsolidity/Version.h>
+ #include <string>
++#include <libdevcore/CommonData.h>
++#include <libdevcore/Common.h>
+ #include <libevmasm/Version.h>
++#include <libsolidity/Utils.h>
+ #include <solidity/BuildInfo.h>
+-#include <libdevcore/Common.h>
+ 
+ using namespace dev;
+ using namespace dev::solidity;
+ using namespace std;
+ 
+ char const* dev::solidity::VersionNumber = ETH_PROJECT_VERSION;
+-extern string const dev::solidity::VersionString =
++
++string const dev::solidity::VersionString =
+ 	string(dev::solidity::VersionNumber) +
+ 	"-" +
+ 	string(DEV_QUOTED(ETH_COMMIT_HASH)).substr(0, 8) +
+@@ -39,3 +42,32 @@ extern string const dev::solidity::VersionString =
+ 	"/" DEV_QUOTED(ETH_BUILD_TYPE) "-" DEV_QUOTED(ETH_BUILD_PLATFORM)
+ 	" linked to libethereum-" + eth::VersionStringLibEvmAsm;
+ 
++
++bytes dev::solidity::binaryVersion()
++{
++	bytes ret{0};
++	size_t i = 0;
++	auto parseDecimal = [&]()
++	{
++		size_t ret = 0;
++		solAssert('0' <= VersionString[i] && VersionString[i] <= '9', "");
++		for (; i < VersionString.size() && '0' <= VersionString[i] && VersionString[i] <= '9'; ++i)
++			ret = ret * 10 + (VersionString[i] - '0');
++		return ret;
++	};
++	ret.push_back(byte(parseDecimal()));
++	solAssert(i < VersionString.size() && VersionString[i] == '.', "");
++	++i;
++	ret.push_back(byte(parseDecimal()));
++	solAssert(i < VersionString.size() && VersionString[i] == '.', "");
++	++i;
++	ret.push_back(byte(parseDecimal()));
++	solAssert(i < VersionString.size() && VersionString[i] == '-', "");
++	++i;
++	solAssert(i + 7 < VersionString.size(), "");
++	ret += fromHex(VersionString.substr(i, 8));
++	solAssert(ret.size() == 1 + 3 + 4, "");
++
++	return ret;
++}
++
+diff --git a/libsolidity/Version.h b/libsolidity/Version.h
+index 6e00f07b..fea73997 100644
+--- a/libsolidity/Version.h
++++ b/libsolidity/Version.h
+@@ -23,6 +23,7 @@
+ #pragma once
+ 
+ #include <string>
++#include <libdevcore/Common.h>
+ 
+ namespace dev
+ {
+@@ -32,5 +33,10 @@ namespace solidity
+ extern char const* VersionNumber;
+ extern std::string const VersionString;
+ 
++/// @returns a binary form of the version string, where A.B.C-HASH is encoded such that
++/// the first byte is zero, the following three bytes encode A B and C (interpreted as decimals)
++/// and HASH is interpreted as 8 hex digits and encoded into the last four bytes.
++bytes binaryVersion();
++
+ }
+ }
+diff --git a/solc/CommandLineInterface.cpp b/solc/CommandLineInterface.cpp
+index a1f5fd66..be10faa8 100644
+--- a/solc/CommandLineInterface.cpp
++++ b/solc/CommandLineInterface.cpp
+@@ -491,12 +491,15 @@ bool CommandLineInterface::processInput()
+ 		// TODO: Perhaps we should not compile unless requested
+ 		bool optimize = m_args.count("optimize") > 0;
+ 		unsigned runs = m_args["optimize-runs"].as<unsigned>();
+-		if (!m_compiler->compile(optimize, runs))
+-		{
+-			for (auto const& error: m_compiler->errors())
+-				SourceReferenceFormatter::printExceptionInformation(cerr, *error, "Error", *m_compiler);
++		bool successful = m_compiler->compile(optimize, runs);
++		for (auto const& error: m_compiler->errors())
++			SourceReferenceFormatter::printExceptionInformation(
++				cerr,
++				*error,
++				(dynamic_pointer_cast<Warning const>(error)) ? "Warning" : "Error", *m_compiler
++			);
++		if (!successful)
+ 			return false;
+-		}
+ 		m_compiler->link(m_libraries);
+ 	}
+ 	catch (ParserError const& _exception)
+diff --git a/solc/jsonCompiler.cpp b/solc/jsonCompiler.cpp
+index ba3e6912..00fd0370 100644
+--- a/solc/jsonCompiler.cpp
++++ b/solc/jsonCompiler.cpp
+@@ -122,13 +122,17 @@ string compile(string _input, bool _optimize)
+ 	Json::Value output(Json::objectValue);
+ 	Json::Value errors(Json::arrayValue);
+ 	CompilerStack compiler;
++	bool success = false;
+ 	try
+ 	{
+-		if (!compiler.compile(_input, _optimize))
+-		{
+-			for (auto const& error: compiler.errors())
+-				errors.append(formatError(*error, "Error", compiler));
+-		}
++		bool succ = compiler.compile(_input, _optimize);
++		for (auto const& error: compiler.errors())
++			errors.append(formatError(
++				*error,
++				(dynamic_pointer_cast<Warning const>(error)) ? "Warning" : "Error",
++				compiler
++			));
++		success = succ; // keep success false on exception
+ 	}
+ 	catch (ParserError const& exception)
+ 	{
+@@ -164,30 +168,30 @@ string compile(string _input, bool _optimize)
+ 	}
+ 
+ 	if (errors.size() > 0)
+-	{
+ 		output["errors"] = errors;
+-		return Json::FastWriter().write(output);
+-	}
+ 
+-	output["contracts"] = Json::Value(Json::objectValue);
+-	for (string const& contractName: compiler.contractNames())
++	if (success)
+ 	{
+-		Json::Value contractData(Json::objectValue);
+-		contractData["solidity_interface"] = compiler.solidityInterface(contractName);
+-		contractData["interface"] = compiler.interface(contractName);
+-		contractData["bytecode"] = compiler.object(contractName).toHex();
+-		contractData["runtimeBytecode"] = compiler.runtimeObject(contractName).toHex();
+-		contractData["opcodes"] = eth::disassemble(compiler.object(contractName).bytecode);
+-		contractData["functionHashes"] = functionHashes(compiler.contractDefinition(contractName));
+-		contractData["gasEstimates"] = estimateGas(compiler, contractName);
+-		ostringstream unused;
+-		contractData["assembly"] = compiler.streamAssembly(unused, contractName, sources, true);
+-		output["contracts"][contractName] = contractData;
+-	}
++		output["contracts"] = Json::Value(Json::objectValue);
++		for (string const& contractName: compiler.contractNames())
++		{
++			Json::Value contractData(Json::objectValue);
++			contractData["solidity_interface"] = compiler.solidityInterface(contractName);
++			contractData["interface"] = compiler.interface(contractName);
++			contractData["bytecode"] = compiler.object(contractName).toHex();
++			contractData["runtimeBytecode"] = compiler.runtimeObject(contractName).toHex();
++			contractData["opcodes"] = eth::disassemble(compiler.object(contractName).bytecode);
++			contractData["functionHashes"] = functionHashes(compiler.contractDefinition(contractName));
++			contractData["gasEstimates"] = estimateGas(compiler, contractName);
++			ostringstream unused;
++			contractData["assembly"] = compiler.streamAssembly(unused, contractName, sources, true);
++			output["contracts"][contractName] = contractData;
++		}
+ 
+-	output["sources"] = Json::Value(Json::objectValue);
+-	output["sources"][""] = Json::Value(Json::objectValue);
+-	output["sources"][""]["AST"] = ASTJsonConverter(compiler.ast("")).json();
++		output["sources"] = Json::Value(Json::objectValue);
++		output["sources"][""] = Json::Value(Json::objectValue);
++		output["sources"][""]["AST"] = ASTJsonConverter(compiler.ast("")).json();
++	}
+ 
+ 	return Json::FastWriter().write(output);
+ }
+diff --git a/test/libsolidity/Assembly.cpp b/test/libsolidity/Assembly.cpp
+index b4678611..ca1e8980 100644
+--- a/test/libsolidity/Assembly.cpp
++++ b/test/libsolidity/Assembly.cpp
+@@ -108,7 +108,7 @@ BOOST_AUTO_TEST_CASE(location_test)
+ 	AssemblyItems items = compileContract(sourceCode);
+ 	vector<SourceLocation> locations =
+ 		vector<SourceLocation>(17, SourceLocation(2, 75, n)) +
+-		vector<SourceLocation>(26, SourceLocation(20, 72, n)) +
++		vector<SourceLocation>(28, SourceLocation(20, 72, n)) +
+ 		vector<SourceLocation>{SourceLocation(42, 51, n), SourceLocation(65, 67, n)} +
+ 		vector<SourceLocation>(4, SourceLocation(58, 67, n)) +
+ 		vector<SourceLocation>(3, SourceLocation(20, 72, n));
+diff --git a/test/libsolidity/SolidityABIJSON.cpp b/test/libsolidity/SolidityABIJSON.cpp
+index 69504e3d..f3004b5f 100644
+--- a/test/libsolidity/SolidityABIJSON.cpp
++++ b/test/libsolidity/SolidityABIJSON.cpp
+@@ -595,6 +595,36 @@ BOOST_AUTO_TEST_CASE(strings_and_arrays)
+ 	checkInterface(sourceCode, interface);
+ }
+ 
++BOOST_AUTO_TEST_CASE(library_function)
++{
++	char const* sourceCode = R"(
++		library test {
++			struct StructType { uint a; }
++			function f(StructType storage b, uint[] storage c, test d) returns (uint[] e, StructType storage f){}
++		}
++	)";
++
++	char const* interface = R"(
++	[
++		{
++			"constant" : false,
++			"name": "f",
++			"inputs": [
++				{ "name": "b", "type": "test.StructType storage" },
++				{ "name": "c", "type": "uint256[] storage" },
++				{ "name": "d", "type": "test" }
++			],
++			"outputs": [
++				{ "name": "e", "type": "uint256[]" },
++				{ "name": "f", "type": "test.StructType storage" }
++			],
++			"type" : "function"
++		}
++	]
++	)";
++	checkInterface(sourceCode, interface);
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityEndToEndTest.cpp b/test/libsolidity/SolidityEndToEndTest.cpp
+index 3124f9cf..3126c1cc 100644
+--- a/test/libsolidity/SolidityEndToEndTest.cpp
++++ b/test/libsolidity/SolidityEndToEndTest.cpp
+@@ -1782,6 +1782,34 @@ BOOST_AUTO_TEST_CASE(constructor_arguments_external)
+ 	BOOST_CHECK(callContractFunction("getName()") == encodeArgs("abc"));
+ }
+ 
++BOOST_AUTO_TEST_CASE(constructor_with_long_arguments)
++{
++	char const* sourceCode = R"(
++		contract Main {
++			string public a;
++			string public b;
++
++			function Main(string _a, string _b) {
++				a = _a;
++				b = _b;
++			}
++		}
++	)";
++	string a = "01234567890123gabddunaouhdaoneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi45678907890123456789abcd123456787890123456789abcd90123456789012345678901234567890123456789aboneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi45678907890123456789abcd123456787890123456789abcd90123456789012345678901234567890123456789aboneudapcgadi4567890789012oneudapcgadi4567890789012oneudapcgadi45678907890123456789abcd123456787890123456789abcd90123456789012345678901234567890123456789aboneudapcgadi4567890789012cdef";
++	string b = "AUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PYAUTAHIACIANOTUHAOCUHAOEUNAOEHUNTHDYDHPYDRCPYDRSTITOEUBXHUDGO>PY";
++
++	compileAndRun(sourceCode, 0, "Main", encodeArgs(
++		u256(0x40),
++		u256(0x40 + 0x20 + ((a.length() + 31) / 32) * 32),
++		u256(a.length()),
++		a,
++		u256(b.length()),
++		b
++	));
++	BOOST_CHECK(callContractFunction("a()") == encodeDyn(a));
++	BOOST_CHECK(callContractFunction("b()") == encodeDyn(b));
++}
++
+ BOOST_AUTO_TEST_CASE(functions_called_by_constructor)
+ {
+ 	char const* sourceCode = R"(
+@@ -2372,9 +2400,9 @@ BOOST_AUTO_TEST_CASE(event_anonymous_with_topics)
+ {
+ 	char const* sourceCode = R"(
+ 		contract ClientReceipt {
+-			event Deposit(address indexed _from, bytes32 indexed _id, uint _value) anonymous;
++			event Deposit(address indexed _from, bytes32 indexed _id, uint indexed _value, uint indexed _value2, bytes32 data) anonymous;
+ 			function deposit(bytes32 _id, bool _manually) {
+-				Deposit(msg.sender, _id, msg.value);
++				Deposit(msg.sender, _id, msg.value, 2, "abc");
+ 			}
+ 		}
+ 	)";
+@@ -2384,10 +2412,12 @@ BOOST_AUTO_TEST_CASE(event_anonymous_with_topics)
+ 	callContractFunctionWithValue("deposit(bytes32,bool)", value, id);
+ 	BOOST_REQUIRE_EQUAL(m_logs.size(), 1);
+ 	BOOST_CHECK_EQUAL(m_logs[0].address, m_contractAddress);
+-	BOOST_CHECK_EQUAL(h256(m_logs[0].data), h256(u256(value)));
+-	BOOST_REQUIRE_EQUAL(m_logs[0].topics.size(), 2);
++	BOOST_CHECK(m_logs[0].data == encodeArgs("abc"));
++	BOOST_REQUIRE_EQUAL(m_logs[0].topics.size(), 4);
+ 	BOOST_CHECK_EQUAL(m_logs[0].topics[0], h256(m_sender));
+ 	BOOST_CHECK_EQUAL(m_logs[0].topics[1], h256(id));
++	BOOST_CHECK_EQUAL(m_logs[0].topics[2], h256(value));
++	BOOST_CHECK_EQUAL(m_logs[0].topics[3], h256(2));
+ }
+ 
+ BOOST_AUTO_TEST_CASE(event_lots_of_data)
+@@ -5354,6 +5384,235 @@ BOOST_AUTO_TEST_CASE(fixed_arrays_as_return_type)
+ 	);
+ }
+ 
++BOOST_AUTO_TEST_CASE(internal_types_in_library)
++{
++	char const* sourceCode = R"(
++		library Lib {
++			function find(uint16[] storage _haystack, uint16 _needle) constant returns (uint)
++			{
++				for (uint i = 0; i < _haystack.length; ++i)
++					if (_haystack[i] == _needle)
++						return i;
++				return uint(-1);
++			}
++		}
++		contract Test {
++			mapping(string => uint16[]) data;
++			function f() returns (uint a, uint b)
++			{
++				data["abc"].length = 20;
++				data["abc"][4] = 9;
++				data["abc"][17] = 3;
++				a = Lib.find(data["abc"], 9);
++				b = Lib.find(data["abc"], 3);
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "Lib");
++	compileAndRun(sourceCode, 0, "Test", bytes(), map<string, Address>{{"Lib", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f()") == encodeArgs(u256(4), u256(17)));
++}
++
++BOOST_AUTO_TEST_CASE(using_library_structs)
++{
++	char const* sourceCode = R"(
++		library Lib {
++			struct Data { uint a; uint[] b; }
++			function set(Data storage _s)
++			{
++				_s.a = 7;
++				_s.b.length = 20;
++				_s.b[19] = 8;
++			}
++		}
++		contract Test {
++			mapping(string => Lib.Data) data;
++			function f() returns (uint a, uint b)
++			{
++				Lib.set(data["abc"]);
++				a = data["abc"].a;
++				b = data["abc"].b[19];
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "Lib");
++	compileAndRun(sourceCode, 0, "Test", bytes(), map<string, Address>{{"Lib", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f()") == encodeArgs(u256(7), u256(8)));
++}
++
++BOOST_AUTO_TEST_CASE(short_strings)
++{
++	// This test verifies that the byte array encoding that combines length and data works
++	// correctly.
++	char const* sourceCode = R"(
++		contract A {
++			bytes public data1 = "123";
++			bytes data2;
++			function lengthChange() returns (uint)
++			{
++				// store constant in short and long string
++				data1 = "123";
++				if (!equal(data1, "123")) return 1;
++				data2 = "12345678901234567890123456789012345678901234567890a";
++				if (data2[17] != "8") return 3;
++				if (data2.length != 51) return 4;
++				if (data2[data2.length - 1] != "a") return 5;
++				// change length: short -> short
++				data1.length = 5;
++				if (data1.length != 5) return 6;
++				data1[4] = "4";
++				if (data1[0] != "1") return 7;
++				if (data1[4] != "4") return 8;
++				// change length: short -> long
++				data1.length = 80;
++				if (data1.length != 80) return 9;
++				data1.length = 70;
++				if (data1.length != 70) return 9;
++				if (data1[0] != "1") return 10;
++				if (data1[4] != "4") return 11;
++				for (uint i = 0; i < data1.length; i ++)
++					data1[i] = byte(i * 3);
++				if (data1[4] != 4 * 3) return 12;
++				if (data1[67] != 67 * 3) return 13;
++				// change length: long -> short
++				data1.length = 22;
++				if (data1.length != 22) return 14;
++				if (data1[21] != byte(21 * 3)) return 15;
++				if (data1[2] != 2 * 3) return 16;
++				// change length: short -> shorter
++				data1.length = 19;
++				if (data1.length != 19) return 17;
++				if (data1[7] != byte(7 * 3)) return 18;
++				// and now again to original size
++				data1.length = 22;
++				if (data1.length != 22) return 19;
++				if (data1[21] != 0) return 20;
++				data1.length = 0;
++				data2.length = 0;
++			}
++			function copy() returns (uint) {
++				bytes memory x = "123";
++				bytes memory y = "012345678901234567890123456789012345678901234567890123456789";
++				bytes memory z = "1234567";
++				data1 = x;
++				data2 = y;
++				if (!equal(data1, x)) return 1;
++				if (!equal(data2, y)) return 2;
++				// lengthen
++				data1 = y;
++				if (!equal(data1, y)) return 3;
++				// shorten
++				data1 = x;
++				if (!equal(data1, x)) return 4;
++				// change while keeping short
++				data1 = z;
++				if (!equal(data1, z)) return 5;
++				// copy storage -> storage
++				data1 = x;
++				data2 = y;
++				// lengthen
++				data1 = data2;
++				if (!equal(data1, y)) return 6;
++				// shorten
++				data1 = x;
++				data2 = data1;
++				if (!equal(data2, x)) return 7;
++				bytes memory c = data2;
++				data1 = c;
++				if (!equal(data1, x)) return 8;
++				data1 = "";
++				data2 = "";
++			}
++			function deleteElements() returns (uint) {
++				data1 = "01234";
++				delete data1[2];
++				if (data1[2] != 0) return 1;
++				if (data1[0] != "0") return 2;
++				if (data1[3] != "3") return 3;
++				delete data1;
++				if (data1.length != 0) return 4;
++			}
++
++			function equal(bytes storage a, bytes memory b) internal returns (bool) {
++				if (a.length != b.length) return false;
++				for (uint i = 0; i < a.length; ++i) if (a[i] != b[i]) return false;
++				return true;
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "A");
++	BOOST_CHECK(callContractFunction("data1()") == encodeDyn(string("123")));
++	BOOST_CHECK(callContractFunction("lengthChange()") == encodeArgs(u256(0)));
++	BOOST_CHECK(m_state.storage(m_contractAddress).empty());
++	BOOST_CHECK(callContractFunction("deleteElements()") == encodeArgs(u256(0)));
++	BOOST_CHECK(m_state.storage(m_contractAddress).empty());
++	BOOST_CHECK(callContractFunction("copy()") == encodeArgs(u256(0)));
++	BOOST_CHECK(m_state.storage(m_contractAddress).empty());
++}
++
++BOOST_AUTO_TEST_CASE(calldata_offset)
++{
++	// This tests a specific bug that was caused by not using the correct memory offset in the
++	// calldata unpacker.
++	char const* sourceCode = R"(
++		contract CB
++		{
++			address[] _arr;
++			string public last = "nd";
++			function CB(address[] guardians)
++			{
++				_arr = guardians;
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "CB", encodeArgs(u256(0x20)));
++	BOOST_CHECK(callContractFunction("last()", encodeArgs()) == encodeDyn(string("nd")));
++}
++
++BOOST_AUTO_TEST_CASE(version_stamp_for_libraries)
++{
++	char const* sourceCode = "library lib {}";
++	m_optimize = true;
++	bytes runtimeCode = compileAndRun(sourceCode, 0, "lib");
++	BOOST_CHECK(runtimeCode.size() >= 8);
++	BOOST_CHECK_EQUAL(runtimeCode[0], int(eth::Instruction::PUSH6)); // might change once we switch to 1.x.x
++	BOOST_CHECK_EQUAL(runtimeCode[1], 1); // might change once we switch away from x.1.x
++	BOOST_CHECK_EQUAL(runtimeCode[7], int(eth::Instruction::POP));
++}
++
++BOOST_AUTO_TEST_CASE(contract_binary_dependencies)
++{
++	char const* sourceCode = R"(
++		contract A { function f() { new B(); } }
++		contract B { function f() { } }
++		contract C { function f() { new B(); } }
++	)";
++	compileAndRun(sourceCode);
++}
++
++BOOST_AUTO_TEST_CASE(reject_ether_sent_to_library)
++{
++	char const* sourceCode = R"(
++		library lib {}
++		contract c {
++			function f(address x) returns (bool) {
++				return x.send(1);
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "lib");
++	Address libraryAddress = m_contractAddress;
++	compileAndRun(sourceCode, 10, "c");
++	BOOST_CHECK_EQUAL(m_state.balance(m_contractAddress), 10);
++	BOOST_CHECK_EQUAL(m_state.balance(libraryAddress), 0);
++	BOOST_CHECK(callContractFunction("f(address)", encodeArgs(u160(libraryAddress))) == encodeArgs(false));
++	BOOST_CHECK_EQUAL(m_state.balance(m_contractAddress), 10);
++	BOOST_CHECK_EQUAL(m_state.balance(libraryAddress), 0);
++	BOOST_CHECK(callContractFunction("f(address)", encodeArgs(u160(m_contractAddress))) == encodeArgs(true));
++	BOOST_CHECK_EQUAL(m_state.balance(m_contractAddress), 10);
++	BOOST_CHECK_EQUAL(m_state.balance(libraryAddress), 0);
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityInterface.cpp b/test/libsolidity/SolidityInterface.cpp
+index d77bccbd..f0d2be20 100644
+--- a/test/libsolidity/SolidityInterface.cpp
++++ b/test/libsolidity/SolidityInterface.cpp
+@@ -142,6 +142,22 @@ BOOST_AUTO_TEST_CASE(inheritance)
+ 												  sourcePart(*contract.definedFunctions().at(1))}));
+ }
+ 
++BOOST_AUTO_TEST_CASE(libraries)
++{
++	char const* sourceCode = R"(
++		library Lib {
++			struct Str { uint a; }
++			enum E { E1, E2 }
++			function f(uint[] x,Str storage y,E z) external;
++		}
++	)";
++	ContractDefinition const& contract = checkInterface(sourceCode);
++	BOOST_CHECK(contract.isLibrary());
++	set<string> expectedFunctions({"function f(uint256[] x,Lib.Str storage y,Lib.E z);"});
++	BOOST_REQUIRE_EQUAL(1, contract.definedFunctions().size());
++	BOOST_CHECK(expectedFunctions == set<string>({sourcePart(*contract.definedFunctions().at(0))}));
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityNameAndTypeResolution.cpp b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+index cac16682..b55c92f0 100644
+--- a/test/libsolidity/SolidityNameAndTypeResolution.cpp
++++ b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+@@ -45,7 +45,7 @@ namespace
+ {
+ 
+ pair<ASTPointer<SourceUnit>, shared_ptr<Exception const>>
+-parseAnalyseAndReturnError(string const& _source)
++parseAnalyseAndReturnError(string const& _source, bool _reportWarnings = false)
+ {
+ 	Parser parser;
+ 	ASTPointer<SourceUnit> sourceUnit;
+@@ -54,9 +54,9 @@ parseAnalyseAndReturnError(string const& _source)
+ 	try
+ 	{
+ 		sourceUnit = parser.parse(std::make_shared<Scanner>(CharStream(_source)));
+-		NameAndTypeResolver resolver({});
+-		resolver.registerDeclarations(*sourceUnit);
+ 		std::shared_ptr<GlobalContext> globalContext = make_shared<GlobalContext>();
++		NameAndTypeResolver resolver(globalContext->declarations());
++		resolver.registerDeclarations(*sourceUnit);
+ 
+ 		for (ASTPointer<ASTNode> const& node: sourceUnit->nodes())
+ 			if (ContractDefinition* contract = dynamic_cast<ContractDefinition*>(node.get()))
+@@ -72,10 +72,20 @@ parseAnalyseAndReturnError(string const& _source)
+ 				globalContext->setCurrentContract(*contract);
+ 				resolver.updateDeclaration(*globalContext->currentThis());
+ 				TypeChecker typeChecker;
+-				if (!typeChecker.checkTypeRequirements(*contract))
++				bool success = typeChecker.checkTypeRequirements(*contract);
++				BOOST_CHECK(success || !typeChecker.errors().empty());
++				for (auto const& firstError: typeChecker.errors())
+ 				{
+-					err = typeChecker.errors().front();
+-					break;
++					if (_reportWarnings || !dynamic_pointer_cast<Warning const>(firstError))
++					{
++						err = firstError;
++						break;
++					}
++					else if (_reportWarnings)
++					{
++						err = firstError;
++						break;
++					}
+ 				}
+ 			}
+ 	}
+@@ -101,9 +111,9 @@ ASTPointer<SourceUnit> parseAndAnalyse(string const& _source)
+ 	return sourceAndError.first;
+ }
+ 
+-shared_ptr<Exception const> parseAndAnalyseReturnError(std::string const& _source)
++shared_ptr<Exception const> parseAndAnalyseReturnError(std::string const& _source, bool _warning = false)
+ {
+-	auto sourceAndError = parseAnalyseAndReturnError(_source);
++	auto sourceAndError = parseAnalyseAndReturnError(_source, _warning);
+ 	BOOST_REQUIRE(!!sourceAndError.second);
+ 	return sourceAndError.second;
+ }
+@@ -119,8 +129,10 @@ static ContractDefinition const* retrieveContract(ASTPointer<SourceUnit> _source
+ 	return nullptr;
+ }
+ 
+-static FunctionTypePointer const& retrieveFunctionBySignature(ContractDefinition const* _contract,
+-															  std::string const& _signature)
++static FunctionTypePointer const& retrieveFunctionBySignature(
++	ContractDefinition const* _contract,
++	std::string const& _signature
++)
+ {
+ 	FixedHash<4> hash(dev::sha3(_signature));
+ 	return _contract->interfaceFunctions()[hash];
+@@ -155,8 +167,8 @@ BOOST_AUTO_TEST_CASE(double_stateVariable_declaration)
+ BOOST_AUTO_TEST_CASE(double_function_declaration)
+ {
+ 	char const* text = "contract test {\n"
+-					   "  function fun() { var x; }\n"
+-					   "  function fun() { var x; }\n"
++					   "  function fun() { uint x; }\n"
++					   "  function fun() { uint x; }\n"
+ 					   "}\n";
+ 	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), DeclarationError);
+ }
+@@ -921,24 +933,24 @@ BOOST_AUTO_TEST_CASE(state_variable_accessors)
+ 	BOOST_REQUIRE((contract = retrieveContract(source, 0)) != nullptr);
+ 	FunctionTypePointer function = retrieveFunctionBySignature(contract, "foo()");
+ 	BOOST_REQUIRE(function && function->hasDeclaration());
+-	auto returnParams = function->returnParameterTypeNames();
++	auto returnParams = function->returnParameterTypeNames(false);
+ 	BOOST_CHECK_EQUAL(returnParams.at(0), "uint256");
+ 	BOOST_CHECK(function->isConstant());
+ 
+ 	function = retrieveFunctionBySignature(contract, "map(uint256)");
+ 	BOOST_REQUIRE(function && function->hasDeclaration());
+-	auto params = function->parameterTypeNames();
++	auto params = function->parameterTypeNames(false);
+ 	BOOST_CHECK_EQUAL(params.at(0), "uint256");
+-	returnParams = function->returnParameterTypeNames();
++	returnParams = function->returnParameterTypeNames(false);
+ 	BOOST_CHECK_EQUAL(returnParams.at(0), "bytes4");
+ 	BOOST_CHECK(function->isConstant());
+ 
+ 	function = retrieveFunctionBySignature(contract, "multiple_map(uint256,uint256)");
+ 	BOOST_REQUIRE(function && function->hasDeclaration());
+-	params = function->parameterTypeNames();
++	params = function->parameterTypeNames(false);
+ 	BOOST_CHECK_EQUAL(params.at(0), "uint256");
+ 	BOOST_CHECK_EQUAL(params.at(1), "uint256");
+-	returnParams = function->returnParameterTypeNames();
++	returnParams = function->returnParameterTypeNames(false);
+ 	BOOST_CHECK_EQUAL(returnParams.at(0), "bytes4");
+ 	BOOST_CHECK(function->isConstant());
+ }
+@@ -1095,6 +1107,24 @@ BOOST_AUTO_TEST_CASE(event_too_many_indexed)
+ 	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), TypeError);
+ }
+ 
++BOOST_AUTO_TEST_CASE(anonymous_event_four_indexed)
++{
++	char const* text = R"(
++		contract c {
++			event e(uint indexed a, bytes3 indexed b, bool indexed c, uint indexed d) anonymous;
++		})";
++	ETH_TEST_CHECK_NO_THROW(parseAndAnalyse(text), "Parsing and Name Resolving Failed");
++}
++
++BOOST_AUTO_TEST_CASE(anonymous_event_too_many_indexed)
++{
++	char const* text = R"(
++		contract c {
++			event e(uint indexed a, bytes3 indexed b, bool indexed c, uint indexed d, uint indexed e) anonymous;
++		})";
++	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), TypeError);
++}
++
+ BOOST_AUTO_TEST_CASE(event_call)
+ {
+ 	char const* text = R"(
+@@ -2318,6 +2348,55 @@ BOOST_AUTO_TEST_CASE(literal_string_to_storage_pointer)
+ 	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), TypeError);
+ }
+ 
++BOOST_AUTO_TEST_CASE(non_initialized_references)
++{
++	char const* text = R"(
++		contract c
++		{
++			struct s{
++				uint a;
++			}
++			function f()
++			{
++				s x;
++				x.a = 2;
++			}
++		}
++	)";
++	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text, true), Warning);
++}
++
++BOOST_AUTO_TEST_CASE(sha3_with_large_integer_constant)
++{
++	char const* text = R"(
++		contract c
++		{
++			function f() { sha3(2**500); }
++		}
++	)";
++	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(cyclic_binary_dependency)
++{
++	char const* text = R"(
++		contract A { function f() { new B(); } }
++		contract B { function f() { new C(); } }
++		contract C { function f() { new A(); } }
++	)";
++	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(cyclic_binary_dependency_via_inheritance)
++{
++	char const* text = R"(
++		contract A is B { }
++		contract B { function f() { new C(); } }
++		contract C { function f() { new A(); } }
++	)";
++	SOLIDITY_CHECK_ERROR_TYPE(parseAndAnalyseReturnError(text), TypeError);
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }

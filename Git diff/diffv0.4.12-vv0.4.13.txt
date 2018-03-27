@@ -1,0 +1,440 @@
+diff --git a/.travis.yml b/.travis.yml
+index 34b1152c..315d29bf 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -221,6 +221,7 @@ deploy:
+           branch:
+             - develop
+             - release
++            - /^v[0-9]/
+     # This is the deploy target for the native build (Linux and macOS)
+     # which generates ZIPs per commit and the source tarball.
+     #
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d6ed6643..f7220b17 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,7 +8,7 @@ include(EthPolicy)
+ eth_policy()
+ 
+ # project name and version should be set after cmake_policy CMP0048
+-set(PROJECT_VERSION "0.4.12")
++set(PROJECT_VERSION "0.4.13")
+ project(solidity VERSION ${PROJECT_VERSION})
+ 
+ # Let's find our dependencies
+diff --git a/Changelog.md b/Changelog.md
+index b41852df..4d84d7a1 100644
+--- a/Changelog.md
++++ b/Changelog.md
+@@ -1,3 +1,14 @@
++### 0.4.13 (2017-07-06)
++
++Features:
++ * Syntax Checker: Deprecated "throw" in favour of require(), assert() and revert().
++ * Type Checker: Warn if a local storage reference variable does not explicitly use the keyword ``storage``.
++
++Bugfixes:
++ * Code Generator: Correctly unregister modifier variables.
++ * Compiler Interface: Only output AST if analysis was successful.
++ * Error Output: Do not omit the error type.
++
+ ### 0.4.12 (2017-07-03)
+ 
+ Features:
+diff --git a/docs/bugs_by_version.json b/docs/bugs_by_version.json
+index cab79f05..d6802eec 100644
+--- a/docs/bugs_by_version.json
++++ b/docs/bugs_by_version.json
+@@ -301,6 +301,10 @@
+         "bugs": [], 
+         "released": "2017-07-03"
+     }, 
++    "0.4.13": {
++        "bugs": [], 
++        "released": "2017-07-06"
++    }, 
+     "0.4.2": {
+         "bugs": [
+             "SkipEmptyStringLiteral", 
+diff --git a/docs/contributing.rst b/docs/contributing.rst
+index 559f9f6a..9d1b2ce3 100644
+--- a/docs/contributing.rst
++++ b/docs/contributing.rst
+@@ -78,10 +78,10 @@ Alternatively, there is a testing script at ``scripts/test.sh`` which executes a
+ Whiskers
+ ========
+ 
+-*Whiskers* is a templating system similar to `Moustache <https://mustache.github.io>`_. It is used by the
++*Whiskers* is a templating system similar to `Mustache <https://mustache.github.io>`_. It is used by the
+ compiler in various places to aid readability, and thus maintainability and verifiability, of the code.
+ 
+-The syntax comes with a substantial difference to Moustache: the template markers ``{{`` and ``}}`` are
++The syntax comes with a substantial difference to Mustache: the template markers ``{{`` and ``}}`` are
+ replaced by ``<`` and ``>`` in order to aid parsing and avoid conflicts with :ref:`inline-assembly`
+ (The symbols ``<`` and ``>`` are invalid in inline assembly, while ``{`` and ``}`` are used to delimit blocks).
+ Another limitation is that lists are only resolved one depth and they will not recurse. This may change in the future.
+@@ -91,5 +91,5 @@ A rough specification is the following:
+ Any occurrence of ``<name>`` is replaced by the string-value of the supplied variable ``name`` without any
+ escaping and without iterated replacements. An area can be delimited by ``<#name>...</name>``. It is replaced
+ by as many concatenations of its contents as there were sets of variables supplied to the template system,
+-each time replacing any ``<inner>`` items by their respective value. Top-level variales can also be used
+-inside such areas.
+\ No newline at end of file
++each time replacing any ``<inner>`` items by their respective value. Top-level variables can also be used
++inside such areas.
+diff --git a/libsolidity/analysis/ReferencesResolver.cpp b/libsolidity/analysis/ReferencesResolver.cpp
+index 2a5f27df..cc95c294 100644
+--- a/libsolidity/analysis/ReferencesResolver.cpp
++++ b/libsolidity/analysis/ReferencesResolver.cpp
+@@ -289,7 +289,20 @@ void ReferencesResolver::endVisit(VariableDeclaration const& _variable)
+ 					typeLoc = DataLocation::Memory;
+ 				}
+ 				else if (varLoc == Location::Default)
+-					typeLoc = _variable.isCallableParameter() ? DataLocation::Memory : DataLocation::Storage;
++				{
++					if (_variable.isCallableParameter())
++						typeLoc = DataLocation::Memory;
++					else
++					{
++						typeLoc = DataLocation::Storage;
++						if (!_variable.isStateVariable())
++							m_errorReporter.warning(
++								_variable.location(),
++								"Variable is declared as a storage pointer. "
++								"Use an explicit \"storage\" keyword to silence this warning."
++							);
++					}
++				}
+ 				else
+ 					typeLoc = varLoc == Location::Memory ? DataLocation::Memory : DataLocation::Storage;
+ 				isPointer = !_variable.isStateVariable();
+diff --git a/libsolidity/analysis/SyntaxChecker.cpp b/libsolidity/analysis/SyntaxChecker.cpp
+index 02e2fdcf..bde0e616 100644
+--- a/libsolidity/analysis/SyntaxChecker.cpp
++++ b/libsolidity/analysis/SyntaxChecker.cpp
+@@ -135,6 +135,16 @@ bool SyntaxChecker::visit(Break const& _breakStatement)
+ 	return true;
+ }
+ 
++bool SyntaxChecker::visit(Throw const& _throwStatement)
++{
++	m_errorReporter.warning(
++		_throwStatement.location(),
++		"\"throw\" is deprecated in favour of \"revert()\", \"require()\" and \"assert()\"."
++	);
++
++	return true;
++}
++
+ bool SyntaxChecker::visit(UnaryOperation const& _operation)
+ {
+ 	if (_operation.getOperator() == Token::Add)
+diff --git a/libsolidity/analysis/SyntaxChecker.h b/libsolidity/analysis/SyntaxChecker.h
+index ec6ac434..fb5cc6d7 100644
+--- a/libsolidity/analysis/SyntaxChecker.h
++++ b/libsolidity/analysis/SyntaxChecker.h
+@@ -33,6 +33,7 @@ namespace solidity
+  *  - whether continue/break is in a for/while loop.
+  *  - whether a modifier contains at least one '_'
+  *  - issues deprecation warnings for unary '+'
++ *  - issues deprecation warning for throw
+  */
+ class SyntaxChecker: private ASTConstVisitor
+ {
+@@ -59,6 +60,8 @@ private:
+ 	virtual bool visit(Continue const& _continueStatement) override;
+ 	virtual bool visit(Break const& _breakStatement) override;
+ 
++	virtual bool visit(Throw const& _throwStatement) override;
++
+ 	virtual bool visit(UnaryOperation const& _operation) override;
+ 
+ 	virtual bool visit(PlaceholderStatement const& _placeholderStatement) override;
+diff --git a/libsolidity/analysis/TypeChecker.cpp b/libsolidity/analysis/TypeChecker.cpp
+index 1563467c..7306a36d 100644
+--- a/libsolidity/analysis/TypeChecker.cpp
++++ b/libsolidity/analysis/TypeChecker.cpp
+@@ -854,10 +854,12 @@ bool TypeChecker::visit(VariableDeclarationStatement const& _statement)
+ 		if (auto ref = dynamic_cast<ReferenceType const*>(type(varDecl).get()))
+ 		{
+ 			if (ref->dataStoredIn(DataLocation::Storage))
+-				m_errorReporter.warning(
+-					varDecl.location(),
+-					"Uninitialized storage pointer. Did you mean '<type> memory " + varDecl.name() + "'?"
+-				);
++			{
++				string errorText{"Uninitialized storage pointer."};
++				if (varDecl.referenceLocation() == VariableDeclaration::Location::Default)
++					errorText += " Did you mean '<type> memory " + varDecl.name() + "'?";
++				m_errorReporter.warning(varDecl.location(), errorText);
++			}
+ 		}
+ 		else if (dynamic_cast<MappingType const*>(type(varDecl).get()))
+ 			m_errorReporter.typeError(
+diff --git a/libsolidity/codegen/ContractCompiler.cpp b/libsolidity/codegen/ContractCompiler.cpp
+index c358a519..cad388df 100644
+--- a/libsolidity/codegen/ContractCompiler.cpp
++++ b/libsolidity/codegen/ContractCompiler.cpp
+@@ -928,7 +928,10 @@ void ContractCompiler::appendModifierOrFunctionCode()
+ 				);
+ 			}
+ 			for (VariableDeclaration const* localVariable: modifier.localVariables())
++			{
++				addedVariables.push_back(localVariable);
+ 				appendStackVariableInitialisation(*localVariable);
++			}
+ 
+ 			stackSurplus =
+ 				CompilerUtils::sizeOnStack(modifier.parameters()) +
+diff --git a/libsolidity/interface/StandardCompiler.cpp b/libsolidity/interface/StandardCompiler.cpp
+index e677afc8..15bb7592 100644
+--- a/libsolidity/interface/StandardCompiler.cpp
++++ b/libsolidity/interface/StandardCompiler.cpp
+@@ -71,7 +71,7 @@ Json::Value formatErrorWithException(
+ )
+ {
+ 	string message;
+-	string formattedMessage = SourceReferenceFormatter::formatExceptionInformation(_exception, _message, _scannerFromSourceName);
++	string formattedMessage = SourceReferenceFormatter::formatExceptionInformation(_exception, _type, _scannerFromSourceName);
+ 
+ 	// NOTE: the below is partially a copy from SourceReferenceFormatter
+ 	SourceLocation const* location = boost::get_error_info<errinfo_sourceLocation>(_exception);
+@@ -271,12 +271,12 @@ Json::Value StandardCompiler::compileInternal(Json::Value const& _input)
+ 
+ 		for (auto const& error: m_compilerStack.errors())
+ 		{
+-			auto err = dynamic_pointer_cast<Error const>(error);
++			Error const& err = dynamic_cast<Error const&>(*error);
+ 
+ 			errors.append(formatErrorWithException(
+ 				*error,
+-				err->type() == Error::Type::Warning,
+-				err->typeName(),
++				err.type() == Error::Type::Warning,
++				err.typeName(),
+ 				"general",
+ 				"",
+ 				scannerFromSourceName
+@@ -357,7 +357,7 @@ Json::Value StandardCompiler::compileInternal(Json::Value const& _input)
+ 	if (errors.size() > 0)
+ 		output["errors"] = errors;
+ 
+-	bool parsingSuccess = m_compilerStack.state() >= CompilerStack::State::ParsingSuccessful;
++	bool analysisSuccess = m_compilerStack.state() >= CompilerStack::State::AnalysisSuccessful;
+ 	bool compilationSuccess = m_compilerStack.state() == CompilerStack::State::CompilationSuccessful;
+ 
+ 	/// Inconsistent state - stop here to receive error reports from users
+@@ -366,7 +366,7 @@ Json::Value StandardCompiler::compileInternal(Json::Value const& _input)
+ 
+ 	output["sources"] = Json::objectValue;
+ 	unsigned sourceIndex = 0;
+-	for (auto const& source: parsingSuccess ? m_compilerStack.sourceNames() : vector<string>())
++	for (auto const& source: analysisSuccess ? m_compilerStack.sourceNames() : vector<string>())
+ 	{
+ 		Json::Value sourceResult = Json::objectValue;
+ 		sourceResult["id"] = sourceIndex++;
+diff --git a/scripts/release_ppa.sh b/scripts/release_ppa.sh
+index 7c9abecb..4fae90ef 100755
+--- a/scripts/release_ppa.sh
++++ b/scripts/release_ppa.sh
+@@ -14,6 +14,21 @@
+ ##
+ ## It will clone the Solidity git from github, determine the version,
+ ## create a source archive and push it to the ubuntu ppa servers.
++##
++## This requires the following entries in /etc/dput.cf:
++##
++##  [ethereum-dev]
++##  fqdn			= ppa.launchpad.net
++##  method			= ftp
++##  incoming		= ~ethereum/ethereum-dev
++##  login			= anonymous
++## 
++##  [ethereum]
++##  fqdn			= ppa.launchpad.net
++##  method			= ftp
++##  incoming		= ~ethereum/ethereum
++##  login			= anonymous
++
+ ##
+ ##############################################################################
+ 
+@@ -28,10 +43,10 @@ fi
+ 
+ if [ "$branch" = develop ]
+ then
+-    pparepo=ethereum/ethereum-dev
++    pparepo=ethereum-dev
+     ppafilesurl=https://launchpad.net/~ethereum/+archive/ubuntu/ethereum-dev/+files
+ else
+-    pparepo=ethereum/ethereum
++    pparepo=ethereum
+     ppafilesurl=https://launchpad.net/~ethereum/+archive/ubuntu/ethereum/+files
+ fi
+ 
+@@ -192,7 +207,8 @@ EMAIL="$email" dch -v 1:${debversion}-${versionsuffix} "git build of ${commithas
+ # build source package
+ # If packages is rejected because original source is already present, add
+ # -sd to remove it from the .changes file
+-debuild -S -sa -us -uc
++# -d disables the build dependencies check
++debuild -S -d -sa -us -uc
+ 
+ # prepare .changes file for Launchpad
+ sed -i -e s/UNRELEASED/${distribution}/ -e s/urgency=medium/urgency=low/ ../*.changes
+@@ -223,6 +239,6 @@ fi
+ debsign --re-sign -k ${keyid} ../${packagename}_${debversion}-${versionsuffix}_source.changes
+ 
+ # upload
+-dput ppa:${pparepo} ../${packagename}_${debversion}-${versionsuffix}_source.changes
++dput ${pparepo} ../${packagename}_${debversion}-${versionsuffix}_source.changes
+ 
+ done
+diff --git a/snap/snapcraft.yaml b/snap/snapcraft.yaml
+new file mode 100644
+index 00000000..f0f3310a
+--- /dev/null
++++ b/snap/snapcraft.yaml
+@@ -0,0 +1,29 @@
++name: solc
++version: master
++summary: The Solidity Contract-Oriented Programming Language
++description: |
++  Solidity is a contract-oriented, high-level language whose syntax is similar
++  to that of JavaScript and it is designed to target the Ethereum Virtual
++  Machine (EVM).
++
++  Solidity is statically typed, supports inheritance, libraries and complex
++  user-defined types among other features.
++
++  It is possible to create contracts for voting, crowdfunding, blind auctions,
++  multi-signature wallets and more.
++
++grade: devel # must be 'stable' to release into candidate/stable channels
++confinement: strict
++
++apps:
++  solc:
++    command: solc
++    plugs: [home]
++
++parts:
++  solidity:
++    source: .
++    source-type: git
++    plugin: cmake
++    build-packages: [build-essential, libboost-all-dev]
++    stage-packages: [libicu55]
+diff --git a/test/libsolidity/SolidityEndToEndTest.cpp b/test/libsolidity/SolidityEndToEndTest.cpp
+index a6c01283..c9771fbd 100644
+--- a/test/libsolidity/SolidityEndToEndTest.cpp
++++ b/test/libsolidity/SolidityEndToEndTest.cpp
+@@ -9696,6 +9696,33 @@ BOOST_AUTO_TEST_CASE(keccak256_assembly)
+ 	BOOST_CHECK(callContractFunction("i()") == fromHex("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"));
+ }
+ 
++BOOST_AUTO_TEST_CASE(multi_modifiers)
++{
++	// This triggered a bug in some version because the variable in the modifier was not
++	// unregistered correctly.
++	char const* sourceCode = R"(
++		contract C {
++			uint public x;
++			modifier m1 {
++				address a1 = msg.sender;
++				x++;
++				_;
++			}
++			function f1() m1() {
++				x += 7;
++			}
++			function f2() m1() {
++				x += 3;
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "C");
++	BOOST_CHECK(callContractFunction("f1()") == bytes());
++	BOOST_CHECK(callContractFunction("x()") == encodeArgs(u256(8)));
++	BOOST_CHECK(callContractFunction("f2()") == bytes());
++	BOOST_CHECK(callContractFunction("x()") == encodeArgs(u256(12)));
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityNameAndTypeResolution.cpp b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+index d0aee3d0..108128f7 100644
+--- a/test/libsolidity/SolidityNameAndTypeResolution.cpp
++++ b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+@@ -2817,7 +2817,7 @@ BOOST_AUTO_TEST_CASE(uninitialized_mapping_array_variable)
+ 	char const* sourceCode = R"(
+ 		contract C {
+ 			function f() {
+-				mapping(uint => uint)[] x;
++				mapping(uint => uint)[] storage x;
+ 				x;
+ 			}
+ 		}
+@@ -3103,7 +3103,7 @@ BOOST_AUTO_TEST_CASE(non_initialized_references)
+ 			}
+ 			function f()
+ 			{
+-				s x;
++				s storage x;
+ 				x.a = 2;
+ 			}
+ 		}
+@@ -5860,6 +5860,18 @@ BOOST_AUTO_TEST_CASE(using_interface_complex)
+ 	success(text);
+ }
+ 
++BOOST_AUTO_TEST_CASE(warn_about_throw)
++{
++	char const* text = R"(
++		contract C {
++			function f() {
++				throw;
++			}
++		}
++	)";
++	CHECK_WARNING(text, "\"throw\" is deprecated");
++}
++
+ BOOST_AUTO_TEST_CASE(bare_revert)
+ {
+ 	char const* text = R"(
+@@ -6144,6 +6156,32 @@ BOOST_AUTO_TEST_CASE(shadowing_warning_can_be_removed)
+ 	CHECK_SUCCESS_NO_WARNINGS(text);
+ }
+ 
++BOOST_AUTO_TEST_CASE(warn_unspecified_storage)
++{
++	char const* text = R"(
++		contract C {
++			struct S { uint a; }
++			S x;
++			function f() {
++				S storage y = x;
++				y;
++			}
++		}
++	)";
++	CHECK_SUCCESS_NO_WARNINGS(text);
++	text = R"(
++		contract C {
++			struct S { uint a; }
++			S x;
++			function f() {
++				S y = x;
++				y;
++			}
++		}
++	)";
++	CHECK_WARNING(text, "is declared as a storage pointer. Use an explicit \"storage\" keyword to silence this warning");
++}
++
+ 
+ BOOST_AUTO_TEST_SUITE_END()
+ 

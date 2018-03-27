@@ -1,92 +1,111 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+/**
+ * Al fine di ottenere un corretto funzionamento della classe è 
+ * necessario che sia installato Git : https://gitforwindows.org/
+ * 
+ */
 
 public class diffSolidityCompiler {
 
 	private static List<String> s = new ArrayList<String>();
 	ProcessBuilder pb = new ProcessBuilder(s);
 	
+	/**
+	 * Riordina le versioni presenti sul file in modo crescente
+	 * @param filePath - path del file
+	 */
+	public void reorderFile(String filePath) {
+
+		List<Node> list = new ArrayList<Node>();
+		List<String> untagged = new ArrayList<String>();
+		String buffer = "";
+		try {
+			BufferedReader reader = new BufferedReader(new FileReader(new File(filePath)));
+			do {
+				buffer = reader.readLine();
+				if (buffer != null) {
+					if (buffer.contains("untagged")) {
+						untagged.add(buffer);
+					} else {
+						list.add(new Node(buffer));
+					}
+				}
+			} while (buffer != null);
+			reader.close();
+			Collections.sort(list);
+			BufferedWriter writer = new BufferedWriter(new FileWriter(new File(filePath)));
+			for(String item : untagged) {
+				writer.write(item);
+				writer.newLine();
+			}
+			for(Node item : list) {
+				writer.write(item.getValue());
+				writer.newLine();
+			}
+			writer.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	/**
+	 * Effettua i git diff tra le varie versioni e sottoversioni del compilatore realizzato 
+	 * al fine di ottenere le modifiche al codice che sono state effettuate
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
 	public void doGitDiff() throws IOException, InterruptedException {
 
+        // Modificare percorso alla cartella contenente il compilatore Solidity
     	File file = new File("C:/Users/Kri/Desktop/solidity/tags.txt");
     	if(file.exists()) {
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	String line;
-    	int count = 2;
-    	int count2 = 1;
-    	int countapp = 0;
-    	int count2app = 0;
-    	String diff1 = null;
-    	String diff2 = null;
+    	int count = 0;
     	String app = null;
-    	boolean flag = false;
-    	boolean flag2 = false;
-    	while ((line = br.readLine()) != null && count2 <= 4) {
+    	while ((line = br.readLine()) != null) {
             s.clear();
             s.add("cmd.exe");
-            s.add("/C");
-    		System.out.println("count2 "+count2+"count "+count);
-    		if(line.contains("0."+count2+"."+count) == true) {
-    			diff1 = line.substring(0, 7);
-    			count++;
+            s.add("/C");            
+            count++;
+    		if((count > 1) && (!app.contains("untagged")) && (!line.contains("untagged"))) {
+    			s.add("git diff "+app.substring(0, 7)+" "+line.substring(0, 7)+" >> diff"+app.substring(18, app.length())+"-v"+line.substring(18, line.length())+".txt"); 
+	            pb = new ProcessBuilder(s);
+	            pb.directory(new File("C:/Users/Kri/Desktop/solidity"));
+	            pb.redirectErrorStream(true);
+	            pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
+	            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+	            Process p = pb.start();
+	            p.waitFor();
     		}
-    		else {   			
-    			if(line.contains("untagged") == false) {
-    				count = 0;
-    				count2++;
-    				System.out.println("count2 "+count2+"count "+count);
-    				if(line.contains("0."+count2+"."+count) == true) {
-    	    			diff1 = line.substring(0, 7);
-    	    			count++;
-    	    		}
-        			countapp = count;
-        			count2app = count2;
-    			}
-    		}
-    		if(count == 3) app = diff1;
-    		if(count == 4) {
-        	//	System.out.println("diff1 "+ diff1);
-        	//	System.out.println("app "+ app);
-    			s.add("git diff "+app+" "+diff1+" >> diffv.0.1.2-v.0.1.3.txt");
-    			flag = true;
-    			diff2 = diff1;
-    			countapp = count;
-    			count2app = count2;
-    		}
-    		else if(flag == true){
-    			
-        		//System.out.println("diff2 "+ diff2);
-        		//System.out.println("diff1 "+ diff1);
-    			s.add("git diff "+diff2+" "+diff1+" >> diffv.0."+count2app+"."+countapp+"-v.0."+count2+"."+count+".txt"); 
-    			diff2 = diff1;
-    			countapp = count;
-    			count2app = count2;
-    		}
-            pb = new ProcessBuilder(s);
-            pb.directory(new File("C:/Users/Kri/Desktop/solidity"));
-            pb.redirectErrorStream(true);
-            pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
-            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-            Process p = pb.start();
-            p.waitFor(); // Attendo finchè non è stato creato il file tags.txt
+    		app = line;
     	}
-	
-
-    }
-    	else System.out.println("no file");
+    	br.close();
+        }
+    	else {
+    		System.out.println("È necessario generare il file tags.txt.");
+    	}
 	}
-	
+		
+	/**
+	 * Crea un file contenente tutte le tags del compilatore 
+	 * @throws Exception
+	 */
 	public void createTags() throws Exception {
 		s.add("cmd.exe");
     	s.add("/C");
     	s.add("git show-ref --abbrev=7 --tags >> tags.txt");
-    	//s.add("git diff f0d539a 68ef581 >> diffv.0.4.10-v.0.4.11.txt");
         pb = new ProcessBuilder(s);
+        // Modificare percorso alla cartella contenente il compilatore Solidity
         pb.directory(new File("C:/Users/Kri/Desktop/solidity"));
         pb.redirectErrorStream(true);
         pb.redirectInput(ProcessBuilder.Redirect.INHERIT);
@@ -99,8 +118,50 @@ public class diffSolidityCompiler {
    	
         diffSolidityCompiler d = new diffSolidityCompiler();
         d.createTags();
+        // Modificare percorso alla cartella contenente il compilatore Solidity
+        d.reorderFile("C:/Users/Kri/Desktop/solidity/tags.txt");
         d.doGitDiff();
-        
-
     }
+    
+	private class Node implements Comparable<Node>{
+		
+		private String value;
+		
+		public Node(String value) {
+			this.value = value;
+		}
+		
+		public String getValue() {
+			return this.value;
+		}
+		
+		public int compareTo(Node o) {
+			int numSeq1[] = new int[3], numSeq2[] = new int[3];
+			String[] split = new String[3];
+			String nSeq = value.substring(value.lastIndexOf("/v")+2, value.length());
+			split = nSeq.split("\\.");
+			for(int i=0; i<3;i++) {
+				numSeq1[i] = Integer.parseInt(split[i]);
+			}
+			nSeq = o.getValue().substring(o.getValue().lastIndexOf("/v")+2, o.getValue().length());
+			split = nSeq.split("\\.");
+			for(int i=0; i<3;i++) {
+				numSeq2[i] = Integer.parseInt(split[i]);
+			}
+			
+			if(numSeq1[0] > numSeq2[0]) return 1;
+			else if(numSeq1[0] < numSeq2[0]) return -1;
+			else if(numSeq1[1] > numSeq2[1]) return 1;
+			else if(numSeq1[1] < numSeq2[1]) return -1;
+			else if(numSeq1[2] > numSeq2[2]) return 1;
+			else if(numSeq1[2] < numSeq2[2]) return -1;
+			else return 0;
+		}
+		
+		public String toString() {
+			return value;
+		}
+	}
+	
 }
+

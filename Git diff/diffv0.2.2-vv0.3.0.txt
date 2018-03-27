@@ -1,0 +1,2541 @@
+diff --git a/.gitignore b/.gitignore
+index 18cdd96f..260be905 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -30,6 +30,7 @@
+ # Build directory
+ build/
+ docs/_build
++docs/utils/__pycache__
+ 
+ # vim stuff
+ *.swp
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a856b883..a02b779e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,7 +8,7 @@ include(EthPolicy)
+ eth_policy()
+ 
+ # project name and version should be set after cmake_policy CMP0048
+-set(PROJECT_VERSION "0.2.2")
++set(PROJECT_VERSION "0.3.0")
+ project(solidity VERSION ${PROJECT_VERSION})
+ 
+ # Let's find our dependencies
+diff --git a/docs/contracts.rst b/docs/contracts.rst
+index 45391cd9..2ab03849 100644
+--- a/docs/contracts.rst
++++ b/docs/contracts.rst
+@@ -4,10 +4,10 @@
+ Contracts
+ ##########
+ 
+-Contracts in Solidity what classes are in object oriented languages.
+-They persistent data in state variables and functions that can modify these variables.
+-Calling a function on a different contract (instance) will perform an EVM
+-function call and thus switch the context such that state variables are
++Contracts in Solidity are what classes are in object oriented languages. They
++contain persistent data in state variables and functions that can modify these
++variables. Calling a function on a different contract (instance) will perform
++an EVM function call and thus switch the context such that state variables are
+ inaccessible.
+ 
+ .. index:: ! contract;creation
+@@ -184,10 +184,9 @@ return parameter list for functions.
+         uint public data;
+     }
+ 
+-Other contracts can call `c.data()` to retrieve the value of
+-data in state storage, but are not able to call `f`.
+-Contracts derived from `c` can call `setData` to alter the
+-value of `data` (but only in their own state).
++Other contracts can call `c.data()` to retrieve the value of data in state
++storage, but are not able to call `f`. Contracts derived from `c` can call
++`setData` to alter the value of `data` (but only in their own state).
+ 
+ .. index:: ! accessor;function, ! function;accessor
+ 
+@@ -359,6 +358,8 @@ possible.
+ 
+ .. index:: ! event
+ 
++.. _events:
++
+ ******
+ Events
+ ******
+@@ -678,7 +679,7 @@ Such contracts cannot be compiled (even if they contain implemented functions al
+ 
+ If a contract inherits from an abstract contract and does not implement all non-implemented functions by overriding, it will itself be abstract.
+ 
+-.. index:: ! library, callcode
++.. index:: ! library, callcode, delegatecall
+ 
+ .. _libraries:
+ 
+@@ -687,7 +688,8 @@ Libraries
+ ************
+ 
+ Libraries are similar to contracts, but their purpose is that they are deployed
+-only once at a specific address and their code is reused using the `CALLCODE`
++only once at a specific address and their code is reused using the `DELEGATECALL`
++(`CALLCODE` until homestead)
+ feature of the EVM. This means that if library functions are called, their code
+ is executed in the context of the calling contract, i.e. `this` points to the
+ calling contract and especially the storage from the calling contract can be
+@@ -754,12 +756,12 @@ reference parameters, can have multiple storage reference
+ parameters and in any position.
+ 
+ The calls to `Set.contains`, `Set.insert` and `Set.remove`
+-are all compiled as calls (`CALLCODE`s) to an external
++are all compiled as calls (`DELEGATECALL`s) to an external
+ contract/library. If you use libraries, take care that an
+-actual external function call is performed, so `msg.sender`
+-does not point to the original sender anymore but to the the
+-calling contract and also `msg.value` contains the funds
+-sent during the call to the library function.
++actual external function call is performed.
++`msg.sender`, `msg.value` and `this` will retain their values
++in this call, though (prior to Homestead, `msg.sender` and
++`msg.value` changed, though).
+ 
+ As the compiler cannot know where the library will be
+ deployed at, these addresses have to be filled into the
+@@ -779,34 +781,6 @@ Restrictions for libraries in comparison to contracts:
+ 
+ (these might be lifted at a later point)
+ 
+-Common pitfalls for libraries
+-=============================
+-
+-.. index:: msg;sender
+-
+-The value of `msg.sender`
+--------------------------
+-
+-The value for `msg.sender` will be that of the contract which is calling the library function.
+-
+-For example, if A calls contract B which internally calls library C, then within the function call of library C, `msg.sender` will be the address of contract B.
+-
+-The reason for this is that the expression `LibraryName.functionName()`
+-performs an external function call using `CALLCODE`, which maps to a real EVM
+-call just like `otherContract.functionName()` or `this.functionName()`.  This
+-call extends the call depth by one (limited to 1024), stores the caller (the
+-current contract) as `msg.sender`, and then executes the library contract's
+-code against the current contracts storage.  This execution occurs in a
+-completely new memory context meaning that memory types will be copied and
+-cannot be passed by reference.
+-
+-Transferring Ether
+--------------------------
+-
+-It is *in principle* possible to transfer ether using
+-`LibraryName.functionName.value(x)()`, but as `CALLCODE` is used, the Ether
+-will just end up at the current contract.
+-
+ .. index:: ! using for, library
+ 
+ .. _using-for:
+diff --git a/docs/control-structures.rst b/docs/control-structures.rst
+index 4becfcf1..9f0f5b5d 100644
+--- a/docs/control-structures.rst
++++ b/docs/control-structures.rst
+@@ -20,6 +20,8 @@ there is in C and JavaScript, so `if (1) { ... }` is *not* valid Solidity.
+ 
+ .. index:: ! function;call, function;internal, function;external
+ 
++.. _function-calls:
++
+ Function Calls
+ ==============
+ 
+@@ -143,7 +145,7 @@ Assigning *to* a state variable always creates an independent copy. On the other
+ Exceptions
+ ==========
+ 
+-There are some cases where exceptions are thrown automatically (see below). You can use the `throw` instruction to throw an exception manually. The effect of an exception is that the currently executing call is stopped and reverted (i.e. all changes to the state and balances are undone) and the exception is also "bubbled up" through Solidity function calls (exceptions are `send` and the low-level functions `call` and `callcode`, those return `false` in case of an exception).
++There are some cases where exceptions are thrown automatically (see below). You can use the `throw` instruction to throw an exception manually. The effect of an exception is that the currently executing call is stopped and reverted (i.e. all changes to the state and balances are undone) and the exception is also "bubbled up" through Solidity function calls (exceptions are `send` and the low-level functions `call`, `delegatecall` and `callcode`, those return `false` in case of an exception).
+ 
+ Catching exceptions is not yet possible.
+ 
+diff --git a/docs/introduction-to-smart-contracts.rst b/docs/introduction-to-smart-contracts.rst
+index 711e7082..22dbbcb7 100644
+--- a/docs/introduction-to-smart-contracts.rst
++++ b/docs/introduction-to-smart-contracts.rst
+@@ -406,15 +406,15 @@ a location in the caller's memory preallocated by the caller.
+ Calls are **limited** to a depth of 1024, which means that for more complex
+ operations, loops should be preferred over recursive calls.
+ 
+-.. index:: callcode, library
++.. index:: delegatecall, callcode, library
+ 
+-Callcode and Libraries
+-======================
++Delegatecall / Callcode and Libraries
++=====================================
+ 
+-There exists a special variant of a message call, named **callcode**
++There exists a special variant of a message call, named **delegatecall**
+ which is identical to a message call apart from the fact that
+ the code at the target address is executed in the context of the calling
+-contract.
++contract and `msg.sender` and `msg.value` do not change their values.
+ 
+ This means that a contract can dynamically load code from a different
+ address at runtime. Storage, current address and balance still
+@@ -461,4 +461,4 @@ The remaining Ether stored at that address is sent to a designated
+ target and then the storage and code is removed.
+ 
+ Note that even if a contract's code does not contain the `SELFDESTRUCT`
+-opcode, it can still perform that operation using callcode.
++opcode, it can still perform that operation using delegatecall or callcode.
+diff --git a/docs/layout-of-source-files.rst b/docs/layout-of-source-files.rst
+index b795d154..48ecfb09 100644
+--- a/docs/layout-of-source-files.rst
++++ b/docs/layout-of-source-files.rst
+@@ -17,15 +17,32 @@ Solidity supports import statements that are very similar to those available in
+ 
+ At a global level, you can use import statements of the following form:
+ 
+-`import "filename";` will import all global symbols from "filename" (and symbols imported there) into the current global scope (different than in ES6 but backwards-compatible for Solidity).
++::
+ 
+-`import * as symbolName from "filename";` creates a new global symbol `symbolName` whose members are all the global symbols from `"filename"`.
++  import "filename";
+ 
+-`import {symbol1 as alias, symbol2} from "filename";` creates new global symbols `alias` and `symbol2` which reference `symbol1` and `symbal2` from `"filename"`, respectively.
++...will import all global symbols from "filename" (and symbols imported there) into the 
++current global scope (different than in ES6 but backwards-compatible for Solidity).
++
++::
++
++  import * as symbolName from "filename";
++
++...creates a new global symbol `symbolName` whose members are all the global symbols from `"filename"`.
++
++::
++
++  import {symbol1 as alias, symbol2} from "filename";
++
++...creates new global symbols `alias` and `symbol2` which reference `symbol1` and `symbol2` from `"filename"`, respectively.
+ 
+ Another syntax is not part of ES6, but probably convenient:
+ 
+-`import "filename" as symbolName;` is equivalent to `import * as symbolName from "filename";`.
++::
++
++  import "filename" as symbolName;
++
++...is equivalent to `import * as symbolName from "filename";`.
+ 
+ Paths
+ -----
+@@ -65,11 +82,15 @@ So as an example, if you clone
+ `github.com/ethereum/dapp-bin/` locally to `/usr/local/dapp-bin`, you can use
+ the following in your source file:
+ 
+-`import "github.com/ethereum/dapp-bin/library/iterable_mapping.sol" as it_mapping;`
++::
++
++  import "github.com/ethereum/dapp-bin/library/iterable_mapping.sol" as it_mapping;
+ 
+ and then run the compiler as
+ 
+-`solc github.com/ethereum/dapp-bin/=/usr/local/dapp-bin/ source.sol`
++.. code-block:: shell
++
++  solc github.com/ethereum/dapp-bin/=/usr/local/dapp-bin/ source.sol
+ 
+ Note that solc only allows you to include files from certain directories:
+ They have to be in the directory (or subdirectory) of one of the explicitly
+@@ -98,6 +119,16 @@ Comments
+ 
+ Single-line comments (`//`) and multi-line comments (`/*...*/`) are possible.
+ 
++::
++
++  // This is a single-line comment.
++  
++  /*
++  This is a 
++  multi-line comment.
++  */
++  
++
+ There are special types of comments called natspec comments
+ (documentation yet to be written). These are introduced by 
+ triple-slash comments (`///`) or using double asterisks (`/** ... */`).
+diff --git a/docs/structure-of-a-contract.rst b/docs/structure-of-a-contract.rst
+index c3683b5e..9910452f 100644
+--- a/docs/structure-of-a-contract.rst
++++ b/docs/structure-of-a-contract.rst
+@@ -1,17 +1,128 @@
+ .. index:: contract, state variable, function, event, struct, enum, function;modifier
+ 
++.. _contract_structure:
++
+ ***********************
+ Structure of a Contract
+ ***********************
+ 
+ Contracts in Solidity are similar to classes in object-oriented languages.
+-Each contract can contain declarations of **state variables**, **functions**,
+-**function modifiers**, **events**, **structs types** and **enum types**.
++Each contract can contain declarations of :ref:`structure-state-variables`, :ref:`structure-functions`,
++:ref:`structure-function-modifiers`, :ref:`structure-events`, :ref:`structure-structs-types` and :ref:`structure-enum-types`.
+ Furthermore, contracts can inherit from other contracts.
+ 
+-* State variables are values which are permanently stored in contract storage.
+-* Functions are the executable units of code within a contract.
+-* Function modifiers can be used to amend the semantics of functions in a declarative way.
+-* Events are convenience interfaces with the EVM logging facilities.
+-* Structs are custom defined types that can group several variables.
+-* Enums can be used to create custom types with a finite set of values.
++.. _structure-state-variables:
++
++State Variables
++===============
++
++State variables are values which are permanently stored in contract storage.
++
++::
++
++  contract SimpleStorage {
++    uint storedData; // State variable
++    // ...
++  }
++
++See the :ref:`types` section for valid state variable types and
++:ref:`visibility-and-accessors` for possible choices for 
++visibility.
++
++.. _structure-functions:
++
++Functions
++=========
++
++Functions are the executable units of code within a contract.
++
++::
++
++  contract SimpleAuction {
++    function bid() { // Function
++      // ...
++    }
++  }
++
++:ref:`function-calls` can happen internally or externally
++and have different levels of visibility (:ref:`visibility-and-accessors`)
++towards other contracts. 
++
++.. _structure-function-modifiers:
++
++Function Modifiers
++==================
++
++Function modifiers can be used to amend the semantics of functions in a declarative way
++(see :ref:`modifiers` in contracts section).
++
++::
++  
++  contract Purchase {
++    address public seller;
++    
++    modifier onlySeller() { // Modifier
++        if (msg.sender != seller) throw;
++        _
++    }
++    
++    function abort() onlySeller { // Modifier usage
++        // ...
++    }
++  }
++
++ in the section on contracts for a more in-depth explanation.
++
++.. _structure-events:
++
++Events
++======
++
++Events are convenience interfaces with the EVM logging facilities.
++
++::
++
++  contract SimpleAuction {
++    event HighestBidIncreased(address bidder, uint amount); // Event
++    
++    function bid() {
++      // ...
++      HighestBidIncreased(msg.sender, msg.value); // Triggering event
++    }
++  }
++
++See :ref:`events` in contracts section for information on how events are declared 
++and can be used from within a dapp.
++
++.. _structure-structs-types:
++
++Structs Types
++=============
++
++Structs are custom defined types that can group several variables (see 
++:ref:`structs` in types section).
++
++::
++
++  contract Ballot {
++    struct Voter { // Struct
++      uint weight;
++      bool voted;
++      address delegate;
++      uint vote;
++    }
++  }
++
++.. _structure-enum-types:
++
++Enum Types
++==========
++
++Enums can be used to create custom types with a finite set of values (see 
++:ref:`enums` in types section).
++
++::
++  
++  contract Purchase {
++    enum State { Created, Locked, Inactive } // Enum
++  }
+diff --git a/docs/types.rst b/docs/types.rst
+index 27ab82ff..13e2a23e 100644
+--- a/docs/types.rst
++++ b/docs/types.rst
+@@ -1,5 +1,7 @@
+ .. index:: type
+ 
++.. _types:
++
+ *****
+ Types
+ *****
+@@ -49,7 +51,10 @@ Operators:
+ * Bit operators: `&`, `|`, `^` (bitwise exclusive or), `~` (bitwise negation)  
+ * Arithmetic operators: `+`, `-`, unary `-`, unary `+`, `*`, `/`, `%` (remainder), `**` (exponentiation)
+ 
+-.. index:: address, balance, send, call, callcode
++Division always truncates (it just maps to the DIV opcode of the EVM), but it does not truncate if both
++operators are :ref:`literals<integer_literals>` (or literal expressions).
++
++.. index:: address, balance, send, call, callcode, delegatecall
+ 
+ Address
+ -------
+@@ -77,7 +82,7 @@ and to send Ether (in units of wei) to an address using the `send` function:
+ .. note::
+     If `x` is a contract address, its code (more specifically: its fallback function, if present) will be executed together with the `send` call (this is a limitation of the EVM and cannot be prevented). If that execution runs out of gas or fails in any way, the Ether transfer will be reverted. In this case, `send` returns `false`.
+ 
+-* `call` and `callcode`
++* `call`, `callcode` and `delegatecall`
+ 
+ Furthermore, to interface with contracts that do not adhere to the ABI,
+ the function `call` is provided which takes an arbitrary number of arguments of any type. These arguments are padded to 32 bytes and concatenated. One exception is the case where the first argument is encoded to exactly four bytes. In this case, it is not padded to allow the use of function signatures here.
+@@ -90,9 +95,9 @@ the function `call` is provided which takes an arbitrary number of arguments of
+ 
+ `call` returns a boolean indicating whether the invoked function terminated (`true`) or caused an EVM exception (`false`). It is not possible to access the actual data returned (for this we would need to know the encoding and size in advance).
+ 
+-In a similar way, the function `callcode` can be used: The difference is that only the code of the given address is used, all other aspects (storage, balance, ...) are taken from the current contract. The purpose of `callcode` is to use library code which is stored in another contract. The user has to ensure that the layout of storage in both contracts is suitable for callcode to be used.
++In a similar way, the function `delegatecall` can be used: The difference is that only the code of the given address is used, all other aspects (storage, balance, ...) are taken from the current contract. The purpose of `delegatecall` is to use library code which is stored in another contract. The user has to ensure that the layout of storage in both contracts is suitable for delegatecall to be used. Prior to homestead, only a limited variant called `callcode` was available that did not provide access to the original `msg.sender` and `msg.value` values.
+ 
+-Both `call` and `callcode` are very low-level functions and should only be used as a *last resort* as they break the type-safety of Solidity.
++All three functions `call`, `delegatecall` and `callcode` are very low-level functions and should only be used as a *last resort* as they break the type-safety of Solidity.
+ 
+ .. note::
+     All contracts inherit the members of address, so it is possible to query the balance of the
+@@ -130,6 +135,8 @@ number of bytes, always use one of `bytes1` to `bytes32` because they are much c
+ 
+ .. index:: literal, literal;integer
+ 
++.. _integer_literals:
++
+ Integer Literals
+ -----------------
+ 
+@@ -137,6 +144,10 @@ Integer Literals are arbitrary precision integers until they are used together w
+ 
+ It is even possible to temporarily exceed the maximum of 256 bits as long as only integer literals are used for the computation: `var x = (0xffffffffffffffffffff * 0xffffffffffffffffffff) * 0;` Here, `x` will have the value `0` and thus the type `uint8`.
+ 
++.. warning::
++    Divison on integer literals used to truncate in earlier versions, but it will actually convert into a rational number in the future, i.e. `1/2` is not equal to `0`, but to `0.5`.
++
++
+ .. index:: literal, literal;string, string
+ 
+ String Literals
+@@ -146,6 +157,8 @@ String Literals are written with double quotes (`"abc"`). As with integer litera
+ 
+ .. index:: enum
+ 
++.. _enums:
++
+ Enums
+ =====
+ 
+@@ -355,6 +368,8 @@ Members
+ 
+ .. index:: ! struct, ! type;struct
+ 
++.. _structs:
++
+ Structs
+ -------
+ 
+diff --git a/docs/units-and-global-variables.rst b/docs/units-and-global-variables.rst
+index f645be8c..a4239a29 100644
+--- a/docs/units-and-global-variables.rst
++++ b/docs/units-and-global-variables.rst
+@@ -72,7 +72,7 @@ Block and Transaction Properties
+ 
+     If you want to implement access restrictions in library functions using
+     `msg.sender`, you have to manually supply the value of
+-    `sg.sender` as an argument.
++    `msg.sender` as an argument.
+ 
+ .. note::
+     The block hashes are not available for all blocks for scalability reasons.
+@@ -94,7 +94,7 @@ Mathematical and Cryptographic Functions
+     compute the SHA-256 hash of the (tightly packed) arguments
+ `ripemd160(...) returns (bytes20)`:
+     compute RIPEMD-160 hash of the (tightly packed) arguments
+-`ecrecover(bytes32, byte, bytes32, bytes32) returns (address)`:
++`ecrecover(bytes32, uint8, bytes32, bytes32) returns (address)`:
+     recover public key from elliptic curve signature - arguments are (data, v, r, s)
+ 
+ In the above, "tightly packed" means that the arguments are concatenated without padding.
+diff --git a/libsolidity/analysis/TypeChecker.cpp b/libsolidity/analysis/TypeChecker.cpp
+index 857d5530..44f4629b 100644
+--- a/libsolidity/analysis/TypeChecker.cpp
++++ b/libsolidity/analysis/TypeChecker.cpp
+@@ -1394,7 +1394,7 @@ bool TypeChecker::visit(Identifier const& _identifier)
+ 
+ void TypeChecker::endVisit(ElementaryTypeNameExpression const& _expr)
+ {
+-	_expr.annotation().type = make_shared<TypeType>(Type::fromElementaryTypeName(_expr.typeToken()));
++	_expr.annotation().type = make_shared<TypeType>(Type::fromElementaryTypeName(_expr.typeName()));
+ }
+ 
+ void TypeChecker::endVisit(Literal const& _literal)
+diff --git a/libsolidity/ast/AST.h b/libsolidity/ast/AST.h
+index e1063467..d32d76a4 100644
+--- a/libsolidity/ast/AST.h
++++ b/libsolidity/ast/AST.h
+@@ -756,18 +756,17 @@ public:
+ class ElementaryTypeName: public TypeName
+ {
+ public:
+-	ElementaryTypeName(SourceLocation const& _location, Token::Value _type):
+-		TypeName(_location), m_type(_type)
+-	{
+-		solAssert(Token::isElementaryTypeName(_type), "");
+-	}
++	ElementaryTypeName(SourceLocation const& _location, ElementaryTypeNameToken const& _elem):
++		TypeName(_location), m_type(_elem)
++	{}
++
+ 	virtual void accept(ASTVisitor& _visitor) override;
+ 	virtual void accept(ASTConstVisitor& _visitor) const override;
+ 
+-	Token::Value typeName() const { return m_type; }
++	ElementaryTypeNameToken const& typeName() const { return m_type; }
+ 
+ private:
+-	Token::Value m_type;
++	ElementaryTypeNameToken m_type;
+ };
+ 
+ /**
+@@ -1408,18 +1407,16 @@ private:
+ class ElementaryTypeNameExpression: public PrimaryExpression
+ {
+ public:
+-	ElementaryTypeNameExpression(SourceLocation const& _location, Token::Value _typeToken):
+-		PrimaryExpression(_location), m_typeToken(_typeToken)
+-	{
+-		solAssert(Token::isElementaryTypeName(_typeToken), "");
+-	}
++	ElementaryTypeNameExpression(SourceLocation const& _location, ElementaryTypeNameToken const& _type):
++		PrimaryExpression(_location), m_typeToken(_type)
++	{}
+ 	virtual void accept(ASTVisitor& _visitor) override;
+ 	virtual void accept(ASTConstVisitor& _visitor) const override;
+ 
+-	Token::Value typeToken() const { return m_typeToken; }
++	ElementaryTypeNameToken const& typeName() const { return m_typeToken; }
+ 
+ private:
+-	Token::Value m_typeToken;
++	ElementaryTypeNameToken m_typeToken;
+ };
+ 
+ /**
+diff --git a/libsolidity/ast/ASTJsonConverter.cpp b/libsolidity/ast/ASTJsonConverter.cpp
+index df836afe..163e22f4 100644
+--- a/libsolidity/ast/ASTJsonConverter.cpp
++++ b/libsolidity/ast/ASTJsonConverter.cpp
+@@ -139,7 +139,7 @@ bool ASTJsonConverter::visit(TypeName const&)
+ 
+ bool ASTJsonConverter::visit(ElementaryTypeName const& _node)
+ {
+-	addJsonNode("ElementaryTypeName", { make_pair("name", Token::toString(_node.typeName())) });
++	addJsonNode("ElementaryTypeName", { make_pair("name", _node.typeName().toString()) });
+ 	return true;
+ }
+ 
+@@ -297,7 +297,7 @@ bool ASTJsonConverter::visit(Identifier const& _node)
+ bool ASTJsonConverter::visit(ElementaryTypeNameExpression const& _node)
+ {
+ 	addJsonNode("ElementaryTypenameExpression",
+-				{ make_pair("value", Token::toString(_node.typeToken())), make_pair("type", type(_node)) });
++				{ make_pair("value", _node.typeName().toString()), make_pair("type", type(_node)) });
+ 	return true;
+ }
+ 
+diff --git a/libsolidity/ast/ASTPrinter.cpp b/libsolidity/ast/ASTPrinter.cpp
+index bc981f7d..283bc8f9 100644
+--- a/libsolidity/ast/ASTPrinter.cpp
++++ b/libsolidity/ast/ASTPrinter.cpp
+@@ -145,7 +145,7 @@ bool ASTPrinter::visit(TypeName const& _node)
+ 
+ bool ASTPrinter::visit(ElementaryTypeName const& _node)
+ {
+-	writeLine(string("ElementaryTypeName ") + Token::toString(_node.typeName()));
++	writeLine(string("ElementaryTypeName ") + _node.typeName().toString());
+ 	printSourcePart(_node);
+ 	return goDeeper();
+ }
+@@ -331,7 +331,7 @@ bool ASTPrinter::visit(Identifier const& _node)
+ 
+ bool ASTPrinter::visit(ElementaryTypeNameExpression const& _node)
+ {
+-	writeLine(string("ElementaryTypeNameExpression ") + Token::toString(_node.typeToken()));
++	writeLine(string("ElementaryTypeNameExpression ") + _node.typeName().toString());
+ 	printType(_node);
+ 	printSourcePart(_node);
+ 	return goDeeper();
+diff --git a/libsolidity/ast/Types.cpp b/libsolidity/ast/Types.cpp
+index 01d1cb37..4dc1eb13 100644
+--- a/libsolidity/ast/Types.cpp
++++ b/libsolidity/ast/Types.cpp
+@@ -81,8 +81,8 @@ MemberList& MemberList::operator=(MemberList&& _other)
+ {
+ 	assert(&_other != this);
+ 
+-	m_memberTypes = std::move(_other.m_memberTypes);
+-	m_storageOffsets = std::move(_other.m_storageOffsets);
++	m_memberTypes = move(_other.m_memberTypes);
++	m_storageOffsets = move(_other.m_storageOffsets);
+ 	return *this;
+ }
+ 
+@@ -91,7 +91,7 @@ void MemberList::combine(MemberList const & _other)
+ 	m_memberTypes += _other.m_memberTypes;
+ }
+ 
+-std::pair<u256, unsigned> const* MemberList::memberStorageOffset(string const& _name) const
++pair<u256, unsigned> const* MemberList::memberStorageOffset(string const& _name) const
+ {
+ 	if (!m_storageOffsets)
+ 	{
+@@ -115,51 +115,52 @@ u256 const& MemberList::storageSize() const
+ 	return m_storageOffsets->storageSize();
+ }
+ 
+-TypePointer Type::fromElementaryTypeName(Token::Value _typeToken)
++TypePointer Type::fromElementaryTypeName(ElementaryTypeNameToken const& _type)
+ {
+-	char const* tokenCstr = Token::toString(_typeToken);
+-	solAssert(Token::isElementaryTypeName(_typeToken),
+-		"Expected an elementary type name but got " + ((tokenCstr) ? std::string(Token::toString(_typeToken)) : ""));
++	solAssert(Token::isElementaryTypeName(_type.token()),
++		"Expected an elementary type name but got " + _type.toString()
++	);
++
++	Token::Value token = _type.token();
++	unsigned int m = _type.firstNumber();
+ 
+-	if (Token::Int <= _typeToken && _typeToken <= Token::Bytes32)
++	switch (token)
+ 	{
+-		int offset = _typeToken - Token::Int;
+-		int bytes = offset % 33;
+-		if (bytes == 0 && _typeToken != Token::Bytes1)
+-			bytes = 32;
+-		int modifier = offset / 33;
+-		switch(modifier)
+-		{
+-		case 0:
+-			return make_shared<IntegerType>(bytes * 8, IntegerType::Modifier::Signed);
+-		case 1:
+-			return make_shared<IntegerType>(bytes * 8, IntegerType::Modifier::Unsigned);
+-		case 2:
+-			return make_shared<FixedBytesType>(bytes + 1);
+-		default:
+-			solAssert(false, "Unexpected modifier value. Should never happen");
+-			return TypePointer();
+-		}
+-	}
+-	else if (_typeToken == Token::Byte)
++	case Token::IntM:
++		return make_shared<IntegerType>(m, IntegerType::Modifier::Signed);
++	case Token::UIntM:
++		return make_shared<IntegerType>(m, IntegerType::Modifier::Unsigned);
++	case Token::BytesM:
++		return make_shared<FixedBytesType>(m);
++	case Token::Int:
++		return make_shared<IntegerType>(256, IntegerType::Modifier::Signed);
++	case Token::UInt:
++		return make_shared<IntegerType>(256, IntegerType::Modifier::Unsigned);
++	case Token::Byte:
+ 		return make_shared<FixedBytesType>(1);
+-	else if (_typeToken == Token::Address)
++	case Token::Address:
+ 		return make_shared<IntegerType>(0, IntegerType::Modifier::Address);
+-	else if (_typeToken == Token::Bool)
++	case Token::Bool:
+ 		return make_shared<BoolType>();
+-	else if (_typeToken == Token::Bytes)
++	case Token::Bytes:
+ 		return make_shared<ArrayType>(DataLocation::Storage);
+-	else if (_typeToken == Token::String)
++	case Token::String:
+ 		return make_shared<ArrayType>(DataLocation::Storage, true);
+-	else
++	//no types found
++	default:
+ 		BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment(
+-			"Unable to convert elementary typename " + std::string(Token::toString(_typeToken)) + " to type."
++			"Unable to convert elementary typename " + _type.toString() + " to type."
+ 		));
++	}
+ }
+ 
+ TypePointer Type::fromElementaryTypeName(string const& _name)
+ {
+-	return fromElementaryTypeName(Token::fromIdentifierOrKeyword(_name));
++	unsigned short firstNum;
++	unsigned short secondNum;
++	Token::Value token;
++	tie(token, firstNum, secondNum) = Token::fromIdentifierOrKeyword(_name);
++ 	return fromElementaryTypeName(ElementaryTypeNameToken(token, firstNum, secondNum));
+ }
+ 
+ TypePointer Type::forLiteral(Literal const& _literal)
+@@ -242,8 +243,10 @@ IntegerType::IntegerType(int _bits, IntegerType::Modifier _modifier):
+ {
+ 	if (isAddress())
+ 		m_bits = 160;
+-	solAssert(m_bits > 0 && m_bits <= 256 && m_bits % 8 == 0,
+-			  "Invalid bit number for integer type: " + dev::toString(_bits));
++	solAssert(
++		m_bits > 0 && m_bits <= 256 && m_bits % 8 == 0,
++		"Invalid bit number for integer type: " + dev::toString(_bits)
++	);
+ }
+ 
+ bool IntegerType::isImplicitlyConvertibleTo(Type const& _convertTo) const
+@@ -330,6 +333,7 @@ MemberList::MemberMap IntegerType::nativeMembers(ContractDefinition const*) cons
+ 			{"balance", make_shared<IntegerType >(256)},
+ 			{"call", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::Bare, true)},
+ 			{"callcode", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::BareCallCode, true)},
++			{"delegatecall", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::BareDelegateCall, true)},
+ 			{"send", make_shared<FunctionType>(strings{"uint"}, strings{"bool"}, FunctionType::Location::Send)}
+ 		};
+ 	else
+@@ -496,7 +500,7 @@ TypePointer IntegerConstantType::binaryOperatorResult(Token::Value _operator, Ty
+ 		case Token::Exp:
+ 			if (other.m_value < 0)
+ 				return TypePointer();
+-			else if (other.m_value > std::numeric_limits<unsigned int>::max())
++			else if (other.m_value > numeric_limits<unsigned int>::max())
+ 				return TypePointer();
+ 			else
+ 				value = boost::multiprecision::pow(m_value, other.m_value.convert_to<unsigned int>());
+@@ -969,9 +973,9 @@ TypePointer ArrayType::interfaceType(bool _inLibrary) const
+ 		return TypePointer();
+ 
+ 	if (isDynamicallySized())
+-		return std::make_shared<ArrayType>(DataLocation::Memory, baseExt);
++		return make_shared<ArrayType>(DataLocation::Memory, baseExt);
+ 	else
+-		return std::make_shared<ArrayType>(DataLocation::Memory, baseExt, m_length);
++		return make_shared<ArrayType>(DataLocation::Memory, baseExt, m_length);
+ }
+ 
+ u256 ArrayType::memorySize() const
+@@ -1484,7 +1488,7 @@ FunctionType::FunctionType(const EventDefinition& _event):
+ 	swap(paramNames, m_parameterNames);
+ }
+ 
+-std::vector<string> FunctionType::parameterNames() const
++vector<string> FunctionType::parameterNames() const
+ {
+ 	if (!bound())
+ 		return m_parameterNames;
+@@ -1558,9 +1562,9 @@ unsigned FunctionType::sizeOnStack() const
+ 	}
+ 
+ 	unsigned size = 0;
+-	if (location == Location::External || location == Location::CallCode)
++	if (location == Location::External || location == Location::CallCode || location == Location::DelegateCall)
+ 		size = 2;
+-	else if (location == Location::Bare || location == Location::BareCallCode)
++	else if (location == Location::Bare || location == Location::BareCallCode || location == Location::BareDelegateCall)
+ 		size = 1;
+ 	else if (location == Location::Internal)
+ 		size = 1;
+@@ -1616,9 +1620,11 @@ MemberList::MemberMap FunctionType::nativeMembers(ContractDefinition const*) con
+ 	case Location::RIPEMD160:
+ 	case Location::Bare:
+ 	case Location::BareCallCode:
++	case Location::BareDelegateCall:
+ 	{
+-		MemberList::MemberMap members{
+-			{
++		MemberList::MemberMap members;
++		if (m_location != Location::BareDelegateCall && m_location != Location::DelegateCall)
++			members.push_back(MemberList::Member(
+ 				"value",
+ 				make_shared<FunctionType>(
+ 					parseElementaryTypeVector({"uint"}),
+@@ -1631,25 +1637,22 @@ MemberList::MemberMap FunctionType::nativeMembers(ContractDefinition const*) con
+ 					m_gasSet,
+ 					m_valueSet
+ 				)
+-			}
+-		};
++			));
+ 		if (m_location != Location::Creation)
+-			members.push_back(
+-				MemberList::Member(
+-					"gas",
+-					make_shared<FunctionType>(
+-						parseElementaryTypeVector({"uint"}),
+-						TypePointers{copyAndSetGasOrValue(true, false)},
+-						strings(),
+-						strings(),
+-						Location::SetGas,
+-						false,
+-						nullptr,
+-						m_gasSet,
+-						m_valueSet
+-					)
++			members.push_back(MemberList::Member(
++				"gas",
++				make_shared<FunctionType>(
++					parseElementaryTypeVector({"uint"}),
++					TypePointers{copyAndSetGasOrValue(true, false)},
++					strings(),
++					strings(),
++					Location::SetGas,
++					false,
++					nullptr,
++					m_gasSet,
++					m_valueSet
+ 				)
+-			);
++			));
+ 		return members;
+ 	}
+ 	default:
+@@ -1668,7 +1671,7 @@ bool FunctionType::canTakeArguments(TypePointers const& _argumentTypes, TypePoin
+ 	else if (_argumentTypes.size() != paramTypes.size())
+ 		return false;
+ 	else
+-		return std::equal(
++		return equal(
+ 			_argumentTypes.cbegin(),
+ 			_argumentTypes.cend(),
+ 			paramTypes.cbegin(),
+@@ -1697,6 +1700,7 @@ bool FunctionType::isBareCall() const
+ 	{
+ 	case Location::Bare:
+ 	case Location::BareCallCode:
++	case Location::BareDelegateCall:
+ 	case Location::ECRecover:
+ 	case Location::SHA256:
+ 	case Location::RIPEMD160:
+@@ -1782,7 +1786,7 @@ FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary, bool _bound)
+ 		returnParameterTypes,
+ 		m_parameterNames,
+ 		returnParameterNames,
+-		_inLibrary ? Location::CallCode : m_location,
++		_inLibrary ? Location::DelegateCall : m_location,
+ 		m_arbitraryParameters,
+ 		m_declaration,
+ 		m_gasSet,
+@@ -1881,7 +1885,7 @@ MemberList::MemberMap TypeType::nativeMembers(ContractDefinition const* _current
+ 			for (auto const& it: contract.interfaceFunctions())
+ 				members.push_back(MemberList::Member(
+ 					it.second->declaration().name(),
+-					it.second->asMemberFunction(true), // use callcode
++					it.second->asMemberFunction(true),
+ 					&it.second->declaration()
+ 				));
+ 		if (isBase)
+diff --git a/libsolidity/ast/Types.h b/libsolidity/ast/Types.h
+index 90a0509b..1d65aeb6 100644
+--- a/libsolidity/ast/Types.h
++++ b/libsolidity/ast/Types.h
+@@ -140,7 +140,7 @@ public:
+ 	/// @{
+ 	/// @name Factory functions
+ 	/// Factory functions that convert an AST @ref TypeName to a Type.
+-	static TypePointer fromElementaryTypeName(Token::Value _typeToken);
++	static TypePointer fromElementaryTypeName(ElementaryTypeNameToken const& _type);
+ 	static TypePointer fromElementaryTypeName(std::string const& _name);
+ 	/// @}
+ 
+@@ -732,8 +732,10 @@ public:
+ 		Internal, ///< stack-call using plain JUMP
+ 		External, ///< external call using CALL
+ 		CallCode, ///< extercnal call using CALLCODE, i.e. not exchanging the storage
++		DelegateCall, ///< extercnal call using DELEGATECALL, i.e. not exchanging the storage
+ 		Bare, ///< CALL without function hash
+ 		BareCallCode, ///< CALLCODE without function hash
++		BareDelegateCall, ///< DELEGATECALL without function hash
+ 		Creation, ///< external call using CREATE
+ 		Send, ///< CALL, but without data and gas
+ 		SHA3, ///< SHA3
+@@ -824,7 +826,7 @@ public:
+ 	/// @returns TypePointer of a new FunctionType object. All input/return parameters are an
+ 	/// appropriate external types (i.e. the interfaceType()s) of input/return parameters of
+ 	/// current function.
+-	/// Returns an empty shared pointer if one of the input/return parameters does not have an
++	/// @returns an empty shared pointer if one of the input/return parameters does not have an
+ 	/// external type.
+ 	FunctionTypePointer interfaceFunctionType() const;
+ 
+@@ -869,7 +871,7 @@ public:
+ 	/// removed and the location of reference types is changed from CallData to Memory.
+ 	/// This is needed if external functions are called on other contracts, as they cannot return
+ 	/// dynamic values.
+-	/// @param _inLibrary if true, uses CallCode as location.
++	/// @param _inLibrary if true, uses DelegateCall as location.
+ 	/// @param _bound if true, the argumenst are placed as `arg1.functionName(arg2, ..., argn)`.
+ 	FunctionTypePointer asMemberFunction(bool _inLibrary, bool _bound = false) const;
+ 
+diff --git a/libsolidity/codegen/Compiler.cpp b/libsolidity/codegen/Compiler.cpp
+index 18803b71..c7eb71a8 100644
+--- a/libsolidity/codegen/Compiler.cpp
++++ b/libsolidity/codegen/Compiler.cpp
+@@ -773,15 +773,13 @@ eth::Assembly Compiler::cloneRuntime()
+ 	a << u256(0) << eth::Instruction::DUP1 << eth::Instruction::CALLDATACOPY;
+ 	//@todo adjust for larger return values, make this dynamic.
+ 	a << u256(0x20) << u256(0) << eth::Instruction::CALLDATASIZE;
+-	// unfortunately, we have to send the value again, so that CALLVALUE returns the correct value
+-	// in the callcoded contract.
+-	a << u256(0) << eth::Instruction::CALLVALUE;
++	a << u256(0);
+ 	// this is the address which has to be substituted by the linker.
+ 	//@todo implement as special "marker" AssemblyItem.
+ 	a << u256("0xcafecafecafecafecafecafecafecafecafecafe");
+-	a << u256(schedule.callGas + schedule.callValueTransferGas + 10) << eth::Instruction::GAS << eth::Instruction::SUB;
+-	a << eth::Instruction::CALLCODE;
+-	//Propagate error condition (if CALLCODE pushes 0 on stack).
++	a << u256(schedule.callGas + 10) << eth::Instruction::GAS << eth::Instruction::SUB;
++	a << eth::Instruction::DELEGATECALL;
++	//Propagate error condition (if DELEGATECALL pushes 0 on stack).
+ 	a << eth::Instruction::ISZERO;
+ 	a.appendJumpI(a.errorTag());
+ 	//@todo adjust for larger return values, make this dynamic.
+diff --git a/libsolidity/codegen/Compiler.h b/libsolidity/codegen/Compiler.h
+index 9d069f7c..fa33bd30 100644
+--- a/libsolidity/codegen/Compiler.h
++++ b/libsolidity/codegen/Compiler.h
+@@ -44,7 +44,7 @@ public:
+ 		ContractDefinition const& _contract,
+ 		std::map<ContractDefinition const*, eth::Assembly const*> const& _contracts
+ 	);
+-	/// Compiles a contract that uses CALLCODE to call into a pre-deployed version of the given
++	/// Compiles a contract that uses DELEGATECALL to call into a pre-deployed version of the given
+ 	/// contract at runtime, but contains the full creation-time code.
+ 	void compileClone(
+ 		ContractDefinition const& _contract,
+diff --git a/libsolidity/codegen/ExpressionCompiler.cpp b/libsolidity/codegen/ExpressionCompiler.cpp
+index 58db07b1..e0b2b5f6 100644
+--- a/libsolidity/codegen/ExpressionCompiler.cpp
++++ b/libsolidity/codegen/ExpressionCompiler.cpp
+@@ -465,8 +465,8 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 	{
+ 		FunctionType const& function = *functionType;
+ 		if (function.bound())
+-			// Only callcode functions can be bound, this might be lifted later.
+-			solAssert(function.location() == Location::CallCode, "");
++			// Only delegatecall functions can be bound, this might be lifted later.
++			solAssert(function.location() == Location::DelegateCall, "");
+ 		switch (function.location())
+ 		{
+ 		case Location::Internal:
+@@ -492,8 +492,10 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 		}
+ 		case Location::External:
+ 		case Location::CallCode:
++		case Location::DelegateCall:
+ 		case Location::Bare:
+ 		case Location::BareCallCode:
++		case Location::BareDelegateCall:
+ 			_functionCall.expression().accept(*this);
+ 			appendExternalFunctionCall(function, arguments);
+ 			break;
+@@ -875,7 +877,7 @@ void ExpressionCompiler::endVisit(MemberAccess const& _memberAccess)
+ 			);
+ 			m_context << eth::Instruction::BALANCE;
+ 		}
+-		else if ((set<string>{"send", "call", "callcode"}).count(member))
++		else if ((set<string>{"send", "call", "callcode", "delegatecall"}).count(member))
+ 			utils().convertType(
+ 				*_memberAccess.expression().annotation().type,
+ 				IntegerType(0, IntegerType::Modifier::Address),
+@@ -1356,6 +1358,7 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 	FunctionKind funKind = _functionType.location();
+ 	bool returnSuccessCondition = funKind == FunctionKind::Bare || funKind == FunctionKind::BareCallCode;
+ 	bool isCallCode = funKind == FunctionKind::BareCallCode || funKind == FunctionKind::CallCode;
++	bool isDelegateCall = funKind == FunctionKind::BareDelegateCall || funKind == FunctionKind::DelegateCall;
+ 
+ 	unsigned retSize = 0;
+ 	if (returnSuccessCondition)
+@@ -1371,13 +1374,13 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 	TypePointers argumentTypes;
+ 	TypePointers parameterTypes = _functionType.parameterTypes();
+ 	bool manualFunctionId =
+-		(funKind == FunctionKind::Bare || funKind == FunctionKind::BareCallCode) &&
++		(funKind == FunctionKind::Bare || funKind == FunctionKind::BareCallCode || funKind == FunctionKind::BareDelegateCall) &&
+ 		!_arguments.empty() &&
+ 		_arguments.front()->annotation().type->mobileType()->calldataEncodedSize(false) ==
+ 			CompilerUtils::dataStartOffset;
+ 	if (manualFunctionId)
+ 	{
+-		// If we have a BareCall or BareCallCode and the first type has exactly 4 bytes, use it as
++		// If we have a Bare* and the first type has exactly 4 bytes, use it as
+ 		// function identifier.
+ 		_arguments.front()->accept(*this);
+ 		utils().convertType(
+@@ -1416,7 +1419,7 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 		parameterTypes,
+ 		_functionType.padArguments(),
+ 		_functionType.takesArbitraryParameters(),
+-		isCallCode
++		isCallCode || isDelegateCall
+ 	);
+ 
+ 	// Stack now:
+@@ -1435,8 +1438,10 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 	m_context << eth::Instruction::DUP2;
+ 
+ 	// CALL arguments: outSize, outOff, inSize, inOff (already present up to here)
+-	// value, addr, gas (stack top)
+-	if (_functionType.valueSet())
++	// [value,] addr, gas (stack top)
++	if (isDelegateCall)
++		solAssert(!_functionType.valueSet(), "Value set for delegatecall");
++	else if (_functionType.valueSet())
+ 		m_context << eth::dupInstruction(m_context.baseToCurrentStackOffset(valueStackPos));
+ 	else
+ 		m_context << u256(0);
+@@ -1446,20 +1451,22 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 		m_context << eth::dupInstruction(m_context.baseToCurrentStackOffset(gasStackPos));
+ 	else
+ 	{
+-		eth::EVMSchedule schedule;// TODO: Make relevant to current suppose context.
++		eth::EVMSchedule schedule;
+ 		// send all gas except the amount needed to execute "SUB" and "CALL"
+ 		// @todo this retains too much gas for now, needs to be fine-tuned.
+ 		u256 gasNeededByCaller = schedule.callGas + 10;
+ 		if (_functionType.valueSet())
+ 			gasNeededByCaller += schedule.callValueTransferGas;
+-		if (!isCallCode)
++		if (!isCallCode && !isDelegateCall)
+ 			gasNeededByCaller += schedule.callNewAccountGas; // we never know
+ 		m_context <<
+ 			gasNeededByCaller <<
+ 			eth::Instruction::GAS <<
+ 			eth::Instruction::SUB;
+ 	}
+-	if (isCallCode)
++	if (isDelegateCall)
++		m_context << eth::Instruction::DELEGATECALL;
++	else if (isCallCode)
+ 		m_context << eth::Instruction::CALLCODE;
+ 	else
+ 		m_context << eth::Instruction::CALL;
+diff --git a/libsolidity/formal/Why3Translator.h b/libsolidity/formal/Why3Translator.h
+index f4315a7a..588b6d80 100644
+--- a/libsolidity/formal/Why3Translator.h
++++ b/libsolidity/formal/Why3Translator.h
+@@ -52,7 +52,7 @@ public:
+ 	std::string translation() const;
+ 
+ private:
+-	/// Returns an error.
++	/// Creates an error and adds it to errors list.
+ 	void error(ASTNode const& _node, std::string const& _description);
+ 	/// Reports a fatal error and throws.
+ 	void fatalError(ASTNode const& _node, std::string const& _description);
+diff --git a/libsolidity/interface/CompilerStack.h b/libsolidity/interface/CompilerStack.h
+index 517d0055..c7f98184 100644
+--- a/libsolidity/interface/CompilerStack.h
++++ b/libsolidity/interface/CompilerStack.h
+@@ -101,7 +101,7 @@ public:
+ 	/// Sets the given source code as the only source unit apart from standard sources and parses it.
+ 	/// @returns false on error.
+ 	bool parse(std::string const& _sourceCode);
+-	/// Returns a list of the contract names in the sources.
++	/// @returns a list of the contract names in the sources.
+ 	std::vector<std::string> contractNames() const;
+ 	std::string defaultContractName() const;
+ 
+@@ -124,7 +124,7 @@ public:
+ 	eth::LinkerObject const& object(std::string const& _contractName = "") const;
+ 	/// @returns the runtime object for the contract.
+ 	eth::LinkerObject const& runtimeObject(std::string const& _contractName = "") const;
+-	/// @returns the bytecode of a contract that uses an already deployed contract via CALLCODE.
++	/// @returns the bytecode of a contract that uses an already deployed contract via DELEGATECALL.
+ 	/// The returned bytes will contain a sequence of 20 bytes of the format "XXX...XXX" which have to
+ 	/// substituted by the actual address. Note that this sequence starts end ends in three X
+ 	/// characters but can contain anything in between.
+@@ -144,13 +144,13 @@ public:
+ 	/// Prerequisite: Successful compilation.
+ 	Json::Value streamAssembly(std::ostream& _outStream, std::string const& _contractName = "", StringMap _sourceCodes = StringMap(), bool _inJsonFormat = false) const;
+ 
+-	/// Returns a string representing the contract interface in JSON.
++	/// @returns a string representing the contract interface in JSON.
+ 	/// Prerequisite: Successful call to parse or compile.
+ 	std::string const& interface(std::string const& _contractName = "") const;
+-	/// Returns a string representing the contract interface in Solidity.
++	/// @returns a string representing the contract interface in Solidity.
+ 	/// Prerequisite: Successful call to parse or compile.
+ 	std::string const& solidityInterface(std::string const& _contractName = "") const;
+-	/// Returns a string representing the contract's documentation in JSON.
++	/// @returns a string representing the contract's documentation in JSON.
+ 	/// Prerequisite: Successful call to parse or compile.
+ 	/// @param type The type of the documentation to get.
+ 	/// Can be one of 4 types defined at @c DocumentationType
+diff --git a/libsolidity/interface/InterfaceHandler.h b/libsolidity/interface/InterfaceHandler.h
+index 30b8f520..3e0a1660 100644
+--- a/libsolidity/interface/InterfaceHandler.h
++++ b/libsolidity/interface/InterfaceHandler.h
+@@ -85,7 +85,7 @@ public:
+ 	static std::string devDocumentation(ContractDefinition const& _contractDef);
+ 
+ private:
+-	/// Returns concatenation of all content under the given tag name.
++	/// @returns concatenation of all content under the given tag name.
+ 	static std::string extractDoc(std::multimap<std::string, DocTag> const& _tags, std::string const& _name);
+ };
+ 
+diff --git a/libsolidity/parsing/Parser.cpp b/libsolidity/parsing/Parser.cpp
+index d9ec1a49..7bda3610 100644
+--- a/libsolidity/parsing/Parser.cpp
++++ b/libsolidity/parsing/Parser.cpp
+@@ -96,21 +96,6 @@ ASTPointer<SourceUnit> Parser::parse(shared_ptr<Scanner> const& _scanner)
+ 	}
+ }
+ 
+-std::shared_ptr<const string> const& Parser::sourceName() const
+-{
+-	return m_scanner->sourceName();
+-}
+-
+-int Parser::position() const
+-{
+-	return m_scanner->currentLocation().start;
+-}
+-
+-int Parser::endPosition() const
+-{
+-	return m_scanner->currentLocation().end;
+-}
+-
+ ASTPointer<ImportDirective> Parser::parseImportDirective()
+ {
+ 	// import "abc" [as x];
+@@ -194,7 +179,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition(bool _isLibrary)
+ 	expectToken(Token::LBrace);
+ 	while (true)
+ 	{
+-		Token::Value currentTokenValue= m_scanner->currentToken();
++		Token::Value currentTokenValue = m_scanner->currentToken();
+ 		if (currentTokenValue == Token::RBrace)
+ 			break;
+ 		else if (currentTokenValue == Token::Function)
+@@ -590,7 +575,11 @@ ASTPointer<TypeName> Parser::parseTypeName(bool _allowVar)
+ 	Token::Value token = m_scanner->currentToken();
+ 	if (Token::isElementaryTypeName(token))
+ 	{
+-		type = ASTNodeFactory(*this).createNode<ElementaryTypeName>(token);
++		unsigned firstSize;
++		unsigned secondSize;
++		tie(firstSize, secondSize) = m_scanner->currentTokenInfo();
++		ElementaryTypeNameToken elemTypeName(token, firstSize, secondSize);
++		type = ASTNodeFactory(*this).createNode<ElementaryTypeName>(elemTypeName);
+ 		m_scanner->next();
+ 	}
+ 	else if (token == Token::Var)
+@@ -626,10 +615,15 @@ ASTPointer<Mapping> Parser::parseMapping()
+ 	ASTNodeFactory nodeFactory(*this);
+ 	expectToken(Token::Mapping);
+ 	expectToken(Token::LParen);
+-	if (!Token::isElementaryTypeName(m_scanner->currentToken()))
+-		fatalParserError(string("Expected elementary type name for mapping key type"));
+ 	ASTPointer<ElementaryTypeName> keyType;
+-	keyType = ASTNodeFactory(*this).createNode<ElementaryTypeName>(m_scanner->currentToken());
++	Token::Value token = m_scanner->currentToken();
++	if (!Token::isElementaryTypeName(token))
++		fatalParserError(string("Expected elementary type name for mapping key type"));
++	unsigned firstSize;
++	unsigned secondSize;
++	tie(firstSize, secondSize) = m_scanner->currentTokenInfo();
++	ElementaryTypeNameToken elemTypeName(token, firstSize, secondSize);
++	keyType = ASTNodeFactory(*this).createNode<ElementaryTypeName>(elemTypeName);
+ 	m_scanner->next();
+ 	expectToken(Token::Arrow);
+ 	bool const allowVar = false;
+@@ -815,12 +809,10 @@ ASTPointer<Statement> Parser::parseSimpleStatement(ASTPointer<ASTString> const&
+ 	default:
+ 		break;
+ 	}
+-
+ 	// At this point, we have 'Identifier "["' or 'Identifier "." Identifier' or 'ElementoryTypeName "["'.
+ 	// We parse '(Identifier ("." Identifier)* |ElementaryTypeName) ( "[" Expression "]" )+'
+ 	// until we can decide whether to hand this over to ExpressionStatement or create a
+ 	// VariableDeclarationStatement out of it.
+-
+ 	vector<ASTPointer<PrimaryExpression>> path;
+ 	bool startedWithElementary = false;
+ 	if (m_scanner->currentToken() == Token::Identifier)
+@@ -828,7 +820,11 @@ ASTPointer<Statement> Parser::parseSimpleStatement(ASTPointer<ASTString> const&
+ 	else
+ 	{
+ 		startedWithElementary = true;
+-		path.push_back(ASTNodeFactory(*this).createNode<ElementaryTypeNameExpression>(m_scanner->currentToken()));
++		unsigned firstNum;
++		unsigned secondNum;
++		tie(firstNum, secondNum) = m_scanner->currentTokenInfo();
++		ElementaryTypeNameToken elemToken(m_scanner->currentToken(), firstNum, secondNum);
++		path.push_back(ASTNodeFactory(*this).createNode<ElementaryTypeNameExpression>(elemToken));
+ 		m_scanner->next();
+ 	}
+ 	while (!startedWithElementary && m_scanner->currentToken() == Token::Period)
+@@ -1066,6 +1062,7 @@ ASTPointer<Expression> Parser::parsePrimaryExpression()
+ 	ASTNodeFactory nodeFactory(*this);
+ 	Token::Value token = m_scanner->currentToken();
+ 	ASTPointer<Expression> expression;
++
+ 	switch (token)
+ 	{
+ 	case Token::TrueLiteral:
+@@ -1134,8 +1131,12 @@ ASTPointer<Expression> Parser::parsePrimaryExpression()
+ 	default:
+ 		if (Token::isElementaryTypeName(token))
+ 		{
+-			// used for casts
+-			expression = nodeFactory.createNode<ElementaryTypeNameExpression>(token);
++			//used for casts
++			unsigned firstSize;
++			unsigned secondSize;
++			tie(firstSize, secondSize) = m_scanner->currentTokenInfo();
++			ElementaryTypeNameToken elementaryExpression(m_scanner->currentToken(), firstSize, secondSize);
++			expression = nodeFactory.createNode<ElementaryTypeNameExpression>(elementaryExpression);
+ 			m_scanner->next();
+ 		}
+ 		else
+@@ -1226,7 +1227,7 @@ ASTPointer<TypeName> Parser::typeNameIndexAccessStructure(
+ 	if (auto typeName = dynamic_cast<ElementaryTypeNameExpression const*>(_path.front().get()))
+ 	{
+ 		solAssert(_path.size() == 1, "");
+-		type = nodeFactory.createNode<ElementaryTypeName>(typeName->typeToken());
++		type = nodeFactory.createNode<ElementaryTypeName>(typeName->typeName());
+ 	}
+ 	else
+ 	{
+@@ -1270,50 +1271,6 @@ ASTPointer<Expression> Parser::expressionFromIndexAccessStructure(
+ 	return expression;
+ }
+ 
+-void Parser::expectToken(Token::Value _value)
+-{
+-	if (m_scanner->currentToken() != _value)
+-		fatalParserError(
+-			string("Expected token ") +
+-			string(Token::name(_value)) +
+-			string(" got '") +
+-			string(Token::name(m_scanner->currentToken())) +
+-			string("'")
+-		);
+-	m_scanner->next();
+-}
+-
+-Token::Value Parser::expectAssignmentOperator()
+-{
+-	Token::Value op = m_scanner->currentToken();
+-	if (!Token::isAssignmentOp(op))
+-		fatalParserError(
+-			string("Expected assignment operator,  got '") +
+-			string(Token::name(m_scanner->currentToken())) +
+-			string("'")
+-		);
+-	m_scanner->next();
+-	return op;
+-}
+-
+-ASTPointer<ASTString> Parser::expectIdentifierToken()
+-{
+-	if (m_scanner->currentToken() != Token::Identifier)
+-		fatalParserError(
+-			string("Expected identifier, got '") +
+-			string(Token::name(m_scanner->currentToken())) +
+-			string("'")
+-		);
+-	return getLiteralAndAdvance();
+-}
+-
+-ASTPointer<ASTString> Parser::getLiteralAndAdvance()
+-{
+-	ASTPointer<ASTString> identifier = make_shared<ASTString>(m_scanner->currentLiteral());
+-	m_scanner->next();
+-	return identifier;
+-}
+-
+ ASTPointer<ParameterList> Parser::createEmptyParameterList()
+ {
+ 	ASTNodeFactory nodeFactory(*this);
+@@ -1321,21 +1278,5 @@ ASTPointer<ParameterList> Parser::createEmptyParameterList()
+ 	return nodeFactory.createNode<ParameterList>(vector<ASTPointer<VariableDeclaration>>());
+ }
+ 
+-void Parser::parserError(string const& _description)
+-{
+-	auto err = make_shared<Error>(Error::Type::ParserError);
+-	*err <<
+-		errinfo_sourceLocation(SourceLocation(position(), position(), sourceName())) <<
+-		errinfo_comment(_description);
+-
+-	m_errors.push_back(err);
+-}
+-
+-void Parser::fatalParserError(string const& _description)
+-{
+-	parserError(_description);
+-	BOOST_THROW_EXCEPTION(FatalError());
+-}
+-
+ }
+ }
+diff --git a/libsolidity/parsing/Parser.h b/libsolidity/parsing/Parser.h
+index eb1aa587..a093cc5b 100644
+--- a/libsolidity/parsing/Parser.h
++++ b/libsolidity/parsing/Parser.h
+@@ -22,7 +22,8 @@
+ 
+ #pragma once
+ 
+-#include "libsolidity/ast/AST.h"
++#include <libsolidity/ast/AST.h>
++#include <libsolidity/parsing/ParserBase.h>
+ 
+ namespace dev
+ {
+@@ -31,22 +32,16 @@ namespace solidity
+ 
+ class Scanner;
+ 
+-class Parser
++class Parser: public ParserBase
+ {
+ public:
+-	Parser(ErrorList& errors): m_errors(errors){};
++	Parser(ErrorList& _errors): ParserBase(_errors) {}
+ 
+ 	ASTPointer<SourceUnit> parse(std::shared_ptr<Scanner> const& _scanner);
+-	std::shared_ptr<std::string const> const& sourceName() const;
+ 
+ private:
+ 	class ASTNodeFactory;
+ 
+-	/// Start position of the current token
+-	int position() const;
+-	/// End position of the current token
+-	int endPosition() const;
+-
+ 	struct VarDeclParserOptions
+ 	{
+ 		VarDeclParserOptions() {}
+@@ -129,39 +124,23 @@ private:
+ 	/// For source code of the form "a[][8]" ("IndexAccessStructure"), this is not possible to
+ 	/// decide with constant look-ahead.
+ 	LookAheadInfo peekStatementType() const;
+-	/// Returns a typename parsed in look-ahead fashion from something like "a.b[8][2**70]".
++	/// @returns a typename parsed in look-ahead fashion from something like "a.b[8][2**70]".
+ 	ASTPointer<TypeName> typeNameIndexAccessStructure(
+ 		std::vector<ASTPointer<PrimaryExpression>> const& _path,
+ 		std::vector<std::pair<ASTPointer<Expression>, SourceLocation>> const& _indices
+ 	);
+-	/// Returns an expression parsed in look-ahead fashion from something like "a.b[8][2**70]".
++	/// @returns an expression parsed in look-ahead fashion from something like "a.b[8][2**70]".
+ 	ASTPointer<Expression> expressionFromIndexAccessStructure(
+ 		std::vector<ASTPointer<PrimaryExpression>> const& _path,
+ 		std::vector<std::pair<ASTPointer<Expression>, SourceLocation>> const& _indices
+ 	);
+-	/// If current token value is not _value, throw exception otherwise advance token.
+-	void expectToken(Token::Value _value);
+-	Token::Value expectAssignmentOperator();
+-	ASTPointer<ASTString> expectIdentifierToken();
+-	ASTPointer<ASTString> getLiteralAndAdvance();
+ 	///@}
+ 
+ 	/// Creates an empty ParameterList at the current location (used if parameters can be omitted).
+ 	ASTPointer<ParameterList> createEmptyParameterList();
+ 
+-	/// Creates a @ref ParserError and annotates it with the current position and the
+-	/// given @a _description.
+-	void parserError(std::string const& _description);
+-
+-	/// Creates a @ref ParserError and annotates it with the current position and the
+-	/// given @a _description. Throws the FatalError.
+-	void fatalParserError(std::string const& _description);
+-
+-	std::shared_ptr<Scanner> m_scanner;
+ 	/// Flag that signifies whether '_' is parsed as a PlaceholderStatement or a regular identifier.
+ 	bool m_insideModifier = false;
+-	/// The reference to the list of errors and warning to add errors/warnings during parsing
+-	ErrorList& m_errors;
+ };
+ 
+ }
+diff --git a/libsolidity/parsing/ParserBase.cpp b/libsolidity/parsing/ParserBase.cpp
+new file mode 100644
+index 00000000..64e42841
+--- /dev/null
++++ b/libsolidity/parsing/ParserBase.cpp
+@@ -0,0 +1,103 @@
++/*
++    This file is part of cpp-ethereum.
++
++    cpp-ethereum is free software: you can redistribute it and/or modify
++    it under the terms of the GNU General Public License as published by
++    the Free Software Foundation, either version 3 of the License, or
++    (at your option) any later version.
++
++    cpp-ethereum is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++    GNU General Public License for more details.
++
++    You should have received a copy of the GNU General Public License
++    along with cpp-ethereum.  If not, see <http://www.gnu.org/licenses/>.
++*/
++/**
++ * @author Christian <c@ethdev.com>
++ * @date 2016
++ * Solidity parser shared functionality.
++ */
++
++#include <libsolidity/parsing/ParserBase.h>
++#include <libsolidity/parsing/Scanner.h>
++
++using namespace std;
++using namespace dev;
++using namespace dev::solidity;
++
++std::shared_ptr<string const> const& ParserBase::sourceName() const
++{
++	return m_scanner->sourceName();
++}
++
++int ParserBase::position() const
++{
++	return m_scanner->currentLocation().start;
++}
++
++int ParserBase::endPosition() const
++{
++	return m_scanner->currentLocation().end;
++}
++
++void ParserBase::expectToken(Token::Value _value)
++{
++	if (m_scanner->currentToken() != _value)
++		fatalParserError(
++			string("Expected token ") +
++			string(Token::name(_value)) +
++			string(" got '") +
++			string(Token::name(m_scanner->currentToken())) +
++			string("'")
++		);
++	m_scanner->next();
++}
++
++Token::Value ParserBase::expectAssignmentOperator()
++{
++	Token::Value op = m_scanner->currentToken();
++	if (!Token::isAssignmentOp(op))
++		fatalParserError(
++			string("Expected assignment operator,  got '") +
++			string(Token::name(m_scanner->currentToken())) +
++			string("'")
++		);
++	m_scanner->next();
++	return op;
++}
++
++ASTPointer<ASTString> ParserBase::expectIdentifierToken()
++{
++	if (m_scanner->currentToken() != Token::Identifier)
++		fatalParserError(
++			string("Expected identifier, got '") +
++			string(Token::name(m_scanner->currentToken())) +
++			string("'")
++		);
++	return getLiteralAndAdvance();
++}
++
++ASTPointer<ASTString> ParserBase::getLiteralAndAdvance()
++{
++	ASTPointer<ASTString> identifier = make_shared<ASTString>(m_scanner->currentLiteral());
++	m_scanner->next();
++	return identifier;
++}
++
++void ParserBase::parserError(string const& _description)
++{
++	auto err = make_shared<Error>(Error::Type::ParserError);
++	*err <<
++		errinfo_sourceLocation(SourceLocation(position(), position(), sourceName())) <<
++		errinfo_comment(_description);
++
++	m_errors.push_back(err);
++}
++
++void ParserBase::fatalParserError(string const& _description)
++{
++	parserError(_description);
++	BOOST_THROW_EXCEPTION(FatalError());
++}
+diff --git a/libsolidity/parsing/ParserBase.h b/libsolidity/parsing/ParserBase.h
+new file mode 100644
+index 00000000..9705228f
+--- /dev/null
++++ b/libsolidity/parsing/ParserBase.h
+@@ -0,0 +1,74 @@
++/*
++    This file is part of cpp-ethereum.
++
++    cpp-ethereum is free software: you can redistribute it and/or modify
++    it under the terms of the GNU General Public License as published by
++    the Free Software Foundation, either version 3 of the License, or
++    (at your option) any later version.
++
++    cpp-ethereum is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++    GNU General Public License for more details.
++
++    You should have received a copy of the GNU General Public License
++    along with cpp-ethereum.  If not, see <http://www.gnu.org/licenses/>.
++*/
++/**
++ * @author Christian <c@ethdev.com>
++ * @date 2016
++ * Solidity parser shared functionality.
++ */
++
++#pragma once
++
++#include <memory>
++#include <libsolidity/interface/Exceptions.h>
++#include <libsolidity/parsing/Token.h>
++#include <libsolidity/ast/ASTForward.h>
++
++namespace dev
++{
++namespace solidity
++{
++
++class Scanner;
++
++class ParserBase
++{
++public:
++	ParserBase(ErrorList& errors): m_errors(errors) {}
++
++	std::shared_ptr<std::string const> const& sourceName() const;
++
++protected:
++	/// Start position of the current token
++	int position() const;
++	/// End position of the current token
++	int endPosition() const;
++
++
++	///@{
++	///@name Helper functions
++	/// If current token value is not _value, throw exception otherwise advance token.
++	void expectToken(Token::Value _value);
++	Token::Value expectAssignmentOperator();
++	ASTPointer<ASTString> expectIdentifierToken();
++	ASTPointer<ASTString> getLiteralAndAdvance();
++	///@}
++
++	/// Creates a @ref ParserError and annotates it with the current position and the
++	/// given @a _description.
++	void parserError(std::string const& _description);
++
++	/// Creates a @ref ParserError and annotates it with the current position and the
++	/// given @a _description. Throws the FatalError.
++	void fatalParserError(std::string const& _description);
++
++	std::shared_ptr<Scanner> m_scanner;
++	/// The reference to the list of errors and warning to add errors/warnings during parsing
++	ErrorList& m_errors;
++};
++
++}
++}
+diff --git a/libsolidity/parsing/Scanner.cpp b/libsolidity/parsing/Scanner.cpp
+index fe0807d5..d630d0ab 100644
+--- a/libsolidity/parsing/Scanner.cpp
++++ b/libsolidity/parsing/Scanner.cpp
+@@ -90,7 +90,6 @@ bool isIdentifierPart(char c)
+ {
+ 	return isIdentifierStart(c) || isDecimalDigit(c);
+ }
+-
+ int hexValue(char c)
+ {
+ 	if (c >= '0' && c <= '9')
+@@ -382,8 +381,14 @@ Token::Value Scanner::scanSlash()
+ void Scanner::scanToken()
+ {
+ 	m_nextToken.literal.clear();
++	m_nextToken.extendedTokenInfo = make_tuple(0, 0);
+ 	m_nextSkippedComment.literal.clear();
++	m_nextSkippedComment.extendedTokenInfo = make_tuple(0, 0);
++
+ 	Token::Value token;
++	// M and N are for the purposes of grabbing different type sizes
++	unsigned m;
++	unsigned n;
+ 	do
+ 	{
+ 		// Remember the position of the next token
+@@ -551,7 +556,7 @@ void Scanner::scanToken()
+ 			break;
+ 		default:
+ 			if (isIdentifierStart(m_char))
+-				token = scanIdentifierOrKeyword();
++				tie(token, m, n) = scanIdentifierOrKeyword();
+ 			else if (isDecimalDigit(m_char))
+ 				token = scanNumber();
+ 			else if (skipWhitespace())
+@@ -568,6 +573,7 @@ void Scanner::scanToken()
+ 	while (token == Token::Whitespace);
+ 	m_nextToken.location.end = sourcePos();
+ 	m_nextToken.token = token;
++	m_nextToken.extendedTokenInfo = make_tuple(m, n);
+ }
+ 
+ bool Scanner::scanEscape()
+@@ -705,13 +711,13 @@ Token::Value Scanner::scanNumber(char _charSeen)
+ 	return Token::Number;
+ }
+ 
+-Token::Value Scanner::scanIdentifierOrKeyword()
++tuple<Token::Value, unsigned, unsigned> Scanner::scanIdentifierOrKeyword()
+ {
+ 	solAssert(isIdentifierStart(m_char), "");
+ 	LiteralScope literal(this, LITERAL_TYPE_STRING);
+ 	addLiteralCharAndAdvance();
+ 	// Scan the rest of the identifier characters.
+-	while (isIdentifierPart(m_char))
++	while (isIdentifierPart(m_char)) //get full literal
+ 		addLiteralCharAndAdvance();
+ 	literal.complete();
+ 	return Token::fromIdentifierOrKeyword(m_nextToken.literal);
+diff --git a/libsolidity/parsing/Scanner.h b/libsolidity/parsing/Scanner.h
+index a1a5c9c1..cffcec8e 100644
+--- a/libsolidity/parsing/Scanner.h
++++ b/libsolidity/parsing/Scanner.h
+@@ -108,13 +108,13 @@ public:
+ 	/// Resets scanner to the start of input.
+ 	void reset();
+ 
+-	/// Returns the next token and advances input
++	/// @returns the next token and advances input
+ 	Token::Value next();
+ 
+ 	///@{
+ 	///@name Information about the current token
+ 
+-	/// Returns the current token
++	/// @returns the current token
+ 	Token::Value currentToken()
+ 	{
+ 		return m_currentToken.token;
+@@ -122,6 +122,7 @@ public:
+ 
+ 	SourceLocation currentLocation() const { return m_currentToken.location; }
+ 	std::string const& currentLiteral() const { return m_currentToken.literal; }
++	std::tuple<unsigned, unsigned> const& currentTokenInfo() const { return m_currentToken.extendedTokenInfo; }
+ 	///@}
+ 
+ 	///@{
+@@ -137,7 +138,7 @@ public:
+ 	///@{
+ 	///@name Information about the next token
+ 
+-	/// Returns the next token without advancing input.
++	/// @returns the next token without advancing input.
+ 	Token::Value peekNextToken() const { return m_nextToken.token; }
+ 	SourceLocation peekLocation() const { return m_nextToken.location; }
+ 	std::string const& peekLiteral() const { return m_nextToken.literal; }
+@@ -160,6 +161,7 @@ private:
+ 		Token::Value token;
+ 		SourceLocation location;
+ 		std::string literal;
++		std::tuple<unsigned, unsigned> extendedTokenInfo;
+ 	};
+ 
+ 	///@{
+@@ -190,7 +192,7 @@ private:
+ 
+ 	void scanDecimalDigits();
+ 	Token::Value scanNumber(char _charSeen = 0);
+-	Token::Value scanIdentifierOrKeyword();
++	std::tuple<Token::Value, unsigned, unsigned> scanIdentifierOrKeyword();
+ 
+ 	Token::Value scanString();
+ 	Token::Value scanSingleLineDocComment();
+diff --git a/libsolidity/parsing/Token.cpp b/libsolidity/parsing/Token.cpp
+index cda639fb..3812a83f 100644
+--- a/libsolidity/parsing/Token.cpp
++++ b/libsolidity/parsing/Token.cpp
+@@ -42,6 +42,7 @@
+ 
+ #include <map>
+ #include <libsolidity/parsing/Token.h>
++#include <boost/range/iterator_range.hpp>
+ 
+ using namespace std;
+ 
+@@ -50,6 +51,34 @@ namespace dev
+ namespace solidity
+ {
+ 
++void ElementaryTypeNameToken::assertDetails(Token::Value _baseType, unsigned const& _first, unsigned const& _second)
++{
++	solAssert(Token::isElementaryTypeName(_baseType), "");
++	if (_baseType == Token::BytesM)
++	{
++		solAssert(_second == 0, "There should not be a second size argument to type bytesM.");
++		solAssert(_first <= 32, "No elementary type bytes" + to_string(_first) + ".");
++	}
++	else if (_baseType == Token::UIntM || _baseType == Token::IntM)
++	{
++		solAssert(_second == 0, "There should not be a second size argument to type " + string(Token::toString(_baseType)) + ".");
++		solAssert(
++			_first <= 256 && _first % 8 == 0, 
++			"No elementary type " + string(Token::toString(_baseType)) + to_string(_first) + "."
++		);
++	}
++	else if (_baseType == Token::UFixedMxN || _baseType == Token::FixedMxN)
++	{
++		solAssert(
++			_first + _second <= 256 && _first % 8 == 0 && _second % 8 == 0,
++			"No elementary type " + string(Token::toString(_baseType)) + to_string(_first) + "x" + to_string(_second) + "."
++		);
++	}
++	m_token = _baseType;
++	m_firstNumber = _first;
++	m_secondNumber = _second;
++}
++
+ #define T(name, string, precedence) #name,
+ char const* const Token::m_name[NUM_TOKENS] =
+ {
+@@ -80,7 +109,70 @@ char const Token::m_tokenType[] =
+ {
+ 	TOKEN_LIST(KT, KK)
+ };
+-Token::Value Token::fromIdentifierOrKeyword(const std::string& _name)
++int Token::parseSize(string::const_iterator _begin, string::const_iterator _end)
++{
++	try
++	{
++		unsigned int m = boost::lexical_cast<int>(boost::make_iterator_range(_begin, _end));
++		return m;
++	}
++	catch(boost::bad_lexical_cast const&)
++	{
++		return -1;
++	}
++}
++tuple<Token::Value, unsigned int, unsigned int> Token::fromIdentifierOrKeyword(string const& _literal)
++{
++	auto positionM = find_if(_literal.begin(), _literal.end(), ::isdigit);
++	if (positionM != _literal.end())
++	{
++		string baseType(_literal.begin(), positionM);
++		auto positionX = find_if_not(positionM, _literal.end(), ::isdigit);
++		int m = parseSize(positionM, positionX);
++		Token::Value keyword = keywordByName(baseType);
++		if (keyword == Token::Bytes)
++		{
++			if (0 < m && m <= 32 && positionX == _literal.end())
++				return make_tuple(Token::BytesM, m, 0);
++		}
++		else if (keyword == Token::UInt || keyword == Token::Int)
++		{
++			if (0 < m && m <= 256 && m % 8 == 0 && positionX == _literal.end())
++			{
++				if (keyword == Token::UInt)
++					return make_tuple(Token::UIntM, m, 0);
++				else
++					return make_tuple(Token::IntM, m, 0);
++			}
++		}
++		else if (keyword == Token::UFixed || keyword == Token::Fixed)
++		{
++			if (
++				positionM < positionX &&
++				positionX < _literal.end() &&
++				*positionX == 'x' &&
++				all_of(positionX + 1, _literal.end(), ::isdigit)
++			) {
++				int n = parseSize(positionX + 1, _literal.end());
++				if (
++					0 < m && m < 256 &&
++					0 < n && n < 256 &&
++					m + n <= 256 &&
++					m % 8 == 0 &&
++					n % 8 == 0
++				) {
++					if (keyword == Token::UFixed)
++						return make_tuple(Token::UFixed, m, n);
++					else
++						return make_tuple(Token::Fixed, m, n);
++				}
++			}	
++		}
++		return make_tuple(Token::Identifier, 0, 0);
++	}
++	return make_tuple(keywordByName(_literal), 0, 0);
++}
++Token::Value Token::keywordByName(string const& _name)
+ {
+ 	// The following macros are used inside TOKEN_LIST and cause non-keyword tokens to be ignored
+ 	// and keywords to be put inside the keywords variable.
+@@ -95,6 +187,5 @@ Token::Value Token::fromIdentifierOrKeyword(const std::string& _name)
+ 
+ #undef KT
+ #undef KK
+-
+ }
+ }
+diff --git a/libsolidity/parsing/Token.h b/libsolidity/parsing/Token.h
+index 88e77345..31646f8d 100644
+--- a/libsolidity/parsing/Token.h
++++ b/libsolidity/parsing/Token.h
+@@ -143,6 +143,7 @@ namespace solidity
+ 	\
+ 	/* Keywords */                                                     \
+ 	K(Anonymous, "anonymous", 0)                                       \
++	K(Assembly, "assembly", 0)                                         \
+ 	K(Break, "break", 0)                                               \
+ 	K(Const, "constant", 0)                                            \
+ 	K(Continue, "continue", 0)                                         \
+@@ -187,113 +188,21 @@ namespace solidity
+ 	K(SubWeek, "weeks", 0)                                             \
+ 	K(SubYear, "years", 0)                                             \
+ 	K(After, "after", 0)                                               \
+-	/* type keywords, keep them in this order, keep int as first keyword
+-	 * the implementation in Types.cpp has to be synced to this here */\
++	/* type keywords*/                                                 \
+ 	K(Int, "int", 0)                                                   \
+-	K(Int8, "int8", 0)                                                 \
+-	K(Int16, "int16", 0)                                               \
+-	K(Int24, "int24", 0)                                               \
+-	K(Int32, "int32", 0)                                               \
+-	K(Int40, "int40", 0)                                               \
+-	K(Int48, "int48", 0)                                               \
+-	K(Int56, "int56", 0)                                               \
+-	K(Int64, "int64", 0)                                               \
+-	K(Int72, "int72", 0)                                               \
+-	K(Int80, "int80", 0)                                               \
+-	K(Int88, "int88", 0)                                               \
+-	K(Int96, "int96", 0)                                               \
+-	K(Int104, "int104", 0)                                             \
+-	K(Int112, "int112", 0)                                             \
+-	K(Int120, "int120", 0)                                             \
+-	K(Int128, "int128", 0)                                             \
+-	K(Int136, "int136", 0)                                             \
+-	K(Int144, "int144", 0)                                             \
+-	K(Int152, "int152", 0)                                             \
+-	K(Int160, "int160", 0)                                             \
+-	K(Int168, "int168", 0)                                             \
+-	K(Int176, "int176", 0)                                             \
+-	K(Int184, "int184", 0)                                             \
+-	K(Int192, "int192", 0)                                             \
+-	K(Int200, "int200", 0)                                             \
+-	K(Int208, "int208", 0)                                             \
+-	K(Int216, "int216", 0)                                             \
+-	K(Int224, "int224", 0)                                             \
+-	K(Int232, "int232", 0)                                             \
+-	K(Int240, "int240", 0)                                             \
+-	K(Int248, "int248", 0)                                             \
+-	K(Int256, "int256", 0)                                             \
++	T(IntM, "intM", 0)                                                 \
+ 	K(UInt, "uint", 0)                                                 \
+-	K(UInt8, "uint8", 0)                                               \
+-	K(UInt16, "uint16", 0)                                             \
+-	K(UInt24, "uint24", 0)                                             \
+-	K(UInt32, "uint32", 0)                                             \
+-	K(UInt40, "uint40", 0)                                             \
+-	K(UInt48, "uint48", 0)                                             \
+-	K(UInt56, "uint56", 0)                                             \
+-	K(UInt64, "uint64", 0)                                             \
+-	K(UInt72, "uint72", 0)                                             \
+-	K(UInt80, "uint80", 0)                                             \
+-	K(UInt88, "uint88", 0)                                             \
+-	K(UInt96, "uint96", 0)                                             \
+-	K(UInt104, "uint104", 0)                                           \
+-	K(UInt112, "uint112", 0)                                           \
+-	K(UInt120, "uint120", 0)                                           \
+-	K(UInt128, "uint128", 0)                                           \
+-	K(UInt136, "uint136", 0)                                           \
+-	K(UInt144, "uint144", 0)                                           \
+-	K(UInt152, "uint152", 0)                                           \
+-	K(UInt160, "uint160", 0)                                           \
+-	K(UInt168, "uint168", 0)                                           \
+-	K(UInt176, "uint176", 0)                                           \
+-	K(UInt184, "uint184", 0)                                           \
+-	K(UInt192, "uint192", 0)                                           \
+-	K(UInt200, "uint200", 0)                                           \
+-	K(UInt208, "uint208", 0)                                           \
+-	K(UInt216, "uint216", 0)                                           \
+-	K(UInt224, "uint224", 0)                                           \
+-	K(UInt232, "uint232", 0)                                           \
+-	K(UInt240, "uint240", 0)                                           \
+-	K(UInt248, "uint248", 0)                                           \
+-	K(UInt256, "uint256", 0)                                           \
+-	K(Bytes1, "bytes1", 0)                                             \
+-	K(Bytes2, "bytes2", 0)                                             \
+-	K(Bytes3, "bytes3", 0)                                             \
+-	K(Bytes4, "bytes4", 0)                                             \
+-	K(Bytes5, "bytes5", 0)                                             \
+-	K(Bytes6, "bytes6", 0)                                             \
+-	K(Bytes7, "bytes7", 0)                                             \
+-	K(Bytes8, "bytes8", 0)                                             \
+-	K(Bytes9, "bytes9", 0)                                             \
+-	K(Bytes10, "bytes10", 0)                                           \
+-	K(Bytes11, "bytes11", 0)                                           \
+-	K(Bytes12, "bytes12", 0)                                           \
+-	K(Bytes13, "bytes13", 0)                                           \
+-	K(Bytes14, "bytes14", 0)                                           \
+-	K(Bytes15, "bytes15", 0)                                           \
+-	K(Bytes16, "bytes16", 0)                                           \
+-	K(Bytes17, "bytes17", 0)                                           \
+-	K(Bytes18, "bytes18", 0)                                           \
+-	K(Bytes19, "bytes19", 0)                                           \
+-	K(Bytes20, "bytes20", 0)                                           \
+-	K(Bytes21, "bytes21", 0)                                           \
+-	K(Bytes22, "bytes22", 0)                                           \
+-	K(Bytes23, "bytes23", 0)                                           \
+-	K(Bytes24, "bytes24", 0)                                           \
+-	K(Bytes25, "bytes25", 0)                                           \
+-	K(Bytes26, "bytes26", 0)                                           \
+-	K(Bytes27, "bytes27", 0)                                           \
+-	K(Bytes28, "bytes28", 0)                                           \
+-	K(Bytes29, "bytes29", 0)                                           \
+-	K(Bytes30, "bytes30", 0)                                           \
+-	K(Bytes31, "bytes31", 0)                                           \
+-	K(Bytes32, "bytes32", 0)                                           \
++	T(UIntM, "uintM", 0)                                               \
+ 	K(Bytes, "bytes", 0)                                               \
++	T(BytesM, "bytesM", 0)                                             \
+ 	K(Byte, "byte", 0)                                                 \
+ 	K(String, "string", 0)                                             \
+ 	K(Address, "address", 0)                                           \
+ 	K(Bool, "bool", 0)                                                 \
+-	K(Real, "real", 0)                                                 \
+-	K(UReal, "ureal", 0)                                               \
++	K(Fixed, "fixed", 0)                                               \
++	T(FixedMxN, "fixedMxN", 0)                                         \
++	K(UFixed, "ufixed", 0)                                             \
++	T(UFixedMxN, "ufixedMxN", 0)                                       \
+ 	T(TypesEnd, NULL, 0) /* used as type enum end marker */            \
+ 	\
+ 	/* Literals */                                                     \
+@@ -312,6 +221,7 @@ namespace solidity
+ 	K(Case, "case", 0)                                                 \
+ 	K(Catch, "catch", 0)                                               \
+ 	K(Final, "final", 0)                                               \
++	K(Inline, "inline", 0)                                             \
+ 	K(Let, "let", 0)                                                   \
+ 	K(Match, "match", 0)                                               \
+ 	K(Of, "of", 0)                                                     \
+@@ -343,7 +253,7 @@ public:
+ 	};
+ #undef T
+ 
+-	// Returns a string corresponding to the C++ token name
++	// @returns a string corresponding to the C++ token name
+ 	// (e.g. "LT" for the token LT).
+ 	static char const* name(Value tok)
+ 	{
+@@ -377,7 +287,7 @@ public:
+ 	static bool isEtherSubdenomination(Value op) { return op == SubWei || op == SubSzabo || op == SubFinney || op == SubEther; }
+ 	static bool isTimeSubdenomination(Value op) { return op == SubSecond || op == SubMinute || op == SubHour || op == SubDay || op == SubWeek || op == SubYear; }
+ 
+-	// Returns a string corresponding to the JS token string
++	// @returns a string corresponding to the JS token string
+ 	// (.e., "<" for the token LT) or NULL if the token doesn't
+ 	// have a (unique) string (e.g. an IDENTIFIER).
+ 	static char const* toString(Value tok)
+@@ -386,7 +296,7 @@ public:
+ 		return m_string[tok];
+ 	}
+ 
+-	// Returns the precedence > 0 for binary and compare
++	// @returns the precedence > 0 for binary and compare
+ 	// operators; returns 0 otherwise.
+ 	static int precedence(Value tok)
+ 	{
+@@ -394,14 +304,47 @@ public:
+ 		return m_precedence[tok];
+ 	}
+ 
+-	static Token::Value fromIdentifierOrKeyword(std::string const& _name);
++	static std::tuple<Token::Value, unsigned int, unsigned int> fromIdentifierOrKeyword(std::string const& _literal);
+ 
+ private:
++	// @returns -1 on error (invalid digit or number too large)
++	static int parseSize(std::string::const_iterator _begin, std::string::const_iterator _end);
++	// @returns the keyword with name @a _name or Token::Identifier of no such keyword exists.
++	static Token::Value keywordByName(std::string const& _name);
+ 	static char const* const m_name[NUM_TOKENS];
+ 	static char const* const m_string[NUM_TOKENS];
+ 	static int8_t const m_precedence[NUM_TOKENS];
+ 	static char const m_tokenType[NUM_TOKENS];
+ };
+ 
++class ElementaryTypeNameToken
++{
++public:
++	ElementaryTypeNameToken(Token::Value _token, unsigned const& _firstNumber, unsigned const& _secondNumber)
++	{
++		assertDetails(_token, _firstNumber, _secondNumber);
++	}
++
++	unsigned int firstNumber() const { return m_firstNumber; }
++	unsigned int secondNumber() const { return m_secondNumber; }
++	Token::Value token() const { return m_token; }
++	///if tokValue is set to true, then returns the actual token type name, otherwise, returns full type
++	std::string toString(bool const& tokenValue = false) const 
++	{
++		std::string name = Token::toString(m_token);
++		if (tokenValue || (firstNumber() == 0 && secondNumber() == 0))
++			return name;
++		//need to set it up this way for fixed types construction in future
++		return name.substr(0, name.size() - 1) + std::to_string(m_firstNumber);
++	}
++
++private:
++	Token::Value m_token;
++	unsigned int m_firstNumber;
++	unsigned int m_secondNumber;
++	/// throws if type is not properly sized
++	void assertDetails(Token::Value _baseType, unsigned const& _first, unsigned const& _second);
++};
++
+ }
+ }
+diff --git a/solc/jsonCompiler.cpp b/solc/jsonCompiler.cpp
+index 987f8dff..b5efa94d 100644
+--- a/solc/jsonCompiler.cpp
++++ b/solc/jsonCompiler.cpp
+@@ -72,7 +72,7 @@ Json::Value gasToJson(GasEstimator::GasConsumption const& _gas)
+ 
+ Json::Value estimateGas(CompilerStack const& _compiler, string const& _contract)
+ {
+-	eth::EVMSchedule schedule;// TODO: make relevant to supposed context.
++	eth::EVMSchedule schedule;
+ 	Json::Value gasEstimates(Json::objectValue);
+ 	using Gas = GasEstimator::GasConsumption;
+ 	if (!_compiler.assemblyItems(_contract) && !_compiler.runtimeAssemblyItems(_contract))
+diff --git a/test/libsolidity/GasMeter.cpp b/test/libsolidity/GasMeter.cpp
+index 25df9e4d..9f947af3 100644
+--- a/test/libsolidity/GasMeter.cpp
++++ b/test/libsolidity/GasMeter.cpp
+@@ -59,7 +59,7 @@ public:
+ 
+ 	void testCreationTimeGas(string const& _sourceCode)
+ 	{
+-		EVMSchedule schedule;// TODO: make relevant to supposed context.
++		EVMSchedule schedule;
+ 
+ 		compileAndRun(_sourceCode);
+ 		auto state = make_shared<KnownState>();
+diff --git a/test/libsolidity/SolidityEndToEndTest.cpp b/test/libsolidity/SolidityEndToEndTest.cpp
+index c6e1b10d..56f07415 100644
+--- a/test/libsolidity/SolidityEndToEndTest.cpp
++++ b/test/libsolidity/SolidityEndToEndTest.cpp
+@@ -726,7 +726,7 @@ BOOST_AUTO_TEST_CASE(small_signed_types)
+ BOOST_AUTO_TEST_CASE(strings)
+ {
+ 	char const* sourceCode = "contract test {\n"
+-							 "  function fixed() returns(bytes32 ret) {\n"
++							 "  function fixedBytes() returns(bytes32 ret) {\n"
+ 							 "    return \"abc\\x00\\xff__\";\n"
+ 							 "  }\n"
+ 							 "  function pipeThrough(bytes2 small, bool one) returns(bytes16 large, bool oneRet) {\n"
+@@ -735,7 +735,7 @@ BOOST_AUTO_TEST_CASE(strings)
+ 							 "  }\n"
+ 							 "}\n";
+ 	compileAndRun(sourceCode);
+-	BOOST_CHECK(callContractFunction("fixed()") == encodeArgs(string("abc\0\xff__", 7)));
++	BOOST_CHECK(callContractFunction("fixedBytes()") == encodeArgs(string("abc\0\xff__", 7)));
+ 	BOOST_CHECK(callContractFunction("pipeThrough(bytes2,bool)", string("\0\x02", 2), true) == encodeArgs(string("\0\x2", 2), true));
+ }
+ 
+@@ -2890,6 +2890,62 @@ BOOST_AUTO_TEST_CASE(generic_callcode)
+ 	BOOST_CHECK_EQUAL(m_state.balance(c_senderAddress), 50);
+ }
+ 
++BOOST_AUTO_TEST_CASE(generic_delegatecall)
++{
++	char const* sourceCode = R"**(
++			contract receiver {
++				uint public received;
++				address public sender;
++				uint public value;
++				function receive(uint256 x) { received = x; sender = msg.sender; value = msg.value; }
++			}
++			contract sender {
++				uint public received;
++				address public sender;
++				uint public value;
++				function doSend(address rec)
++				{
++					bytes4 signature = bytes4(bytes32(sha3("receive(uint256)")));
++					rec.delegatecall(signature, 23);
++				}
++			}
++	)**";
++	compileAndRun(sourceCode, 0, "receiver");
++	u160 const c_receiverAddress = m_contractAddress;
++	compileAndRun(sourceCode, 50, "sender");
++	u160 const c_senderAddress = m_contractAddress;
++	BOOST_CHECK(m_sender != c_senderAddress); // just for sanity
++	BOOST_CHECK(callContractFunctionWithValue("doSend(address)", 11, c_receiverAddress) == encodeArgs());
++	BOOST_CHECK(callContractFunction("received()") == encodeArgs(u256(23)));
++	BOOST_CHECK(callContractFunction("sender()") == encodeArgs(u160(m_sender)));
++	BOOST_CHECK(callContractFunction("value()") == encodeArgs(u256(11)));
++	m_contractAddress = c_receiverAddress;
++	BOOST_CHECK(callContractFunction("received()") == encodeArgs(u256(0)));
++	BOOST_CHECK(callContractFunction("sender()") == encodeArgs(u256(0)));
++	BOOST_CHECK(callContractFunction("value()") == encodeArgs(u256(0)));
++	BOOST_CHECK(m_state.storage(c_receiverAddress).empty());
++	BOOST_CHECK(!m_state.storage(c_senderAddress).empty());
++	BOOST_CHECK_EQUAL(m_state.balance(c_receiverAddress), 0);
++	BOOST_CHECK_EQUAL(m_state.balance(c_senderAddress), 50 + 11);
++}
++
++BOOST_AUTO_TEST_CASE(library_call_in_homestead)
++{
++	char const* sourceCode = R"(
++		library Lib { function m() returns (address) { return msg.sender; } }
++		contract Test {
++			address public sender;
++			function f() {
++				sender = Lib.m();
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "Lib");
++	compileAndRun(sourceCode, 0, "Test", bytes(), map<string, Address>{{"Lib", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f()") == encodeArgs());
++	BOOST_CHECK(callContractFunction("sender()") == encodeArgs(u160(m_sender)));
++}
++
+ BOOST_AUTO_TEST_CASE(store_bytes)
+ {
+ 	// this test just checks that the copy loop does not mess up the stack
+@@ -5847,7 +5903,7 @@ BOOST_AUTO_TEST_CASE(version_stamp_for_libraries)
+ 	bytes runtimeCode = compileAndRun(sourceCode, 0, "lib");
+ 	BOOST_CHECK(runtimeCode.size() >= 8);
+ 	BOOST_CHECK_EQUAL(runtimeCode[0], int(eth::Instruction::PUSH6)); // might change once we switch to 1.x.x
+-	BOOST_CHECK_EQUAL(runtimeCode[1], 2); // might change once we switch away from x.2.x
++	BOOST_CHECK_EQUAL(runtimeCode[1], 3); // might change once we switch away from x.3.x
+ 	BOOST_CHECK_EQUAL(runtimeCode[7], int(eth::Instruction::POP));
+ }
+ 
+diff --git a/test/libsolidity/SolidityNameAndTypeResolution.cpp b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+index 3ca5a6b2..bf43224f 100644
+--- a/test/libsolidity/SolidityNameAndTypeResolution.cpp
++++ b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+@@ -927,13 +927,13 @@ BOOST_AUTO_TEST_CASE(modifier_returns_value)
+ BOOST_AUTO_TEST_CASE(state_variable_accessors)
+ {
+ 	char const* text = "contract test {\n"
+-					   "  function fun() {\n"
+-					   "    uint64(2);\n"
+-					   "  }\n"
+-					   "uint256 public foo;\n"
+-					   "mapping(uint=>bytes4) public map;\n"
+-					   "mapping(uint=>mapping(uint=>bytes4)) public multiple_map;\n"
+-					   "}\n";
++ 						"  function fun() {\n"
++ 						"    uint64(2);\n"
++ 						"  }\n"
++ 						"uint256 public foo;\n"
++ 						"mapping(uint=>bytes4) public map;\n"
++ 						"mapping(uint=>mapping(uint=>bytes4)) public multiple_map;\n"
++ 						"}\n";
+ 
+ 	ASTPointer<SourceUnit> source;
+ 	ContractDefinition const* contract;
+@@ -1632,107 +1632,108 @@ BOOST_AUTO_TEST_CASE(storage_variable_initialization_with_incorrect_type_string)
+ 
+ BOOST_AUTO_TEST_CASE(test_fromElementaryTypeName)
+ {
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int) == *make_shared<IntegerType>(256, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int8) == *make_shared<IntegerType>(8, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int16) == *make_shared<IntegerType>(16, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int24) == *make_shared<IntegerType>(24, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int32) == *make_shared<IntegerType>(32, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int40) == *make_shared<IntegerType>(40, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int48) == *make_shared<IntegerType>(48, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int56) == *make_shared<IntegerType>(56, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int64) == *make_shared<IntegerType>(64, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int72) == *make_shared<IntegerType>(72, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int80) == *make_shared<IntegerType>(80, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int88) == *make_shared<IntegerType>(88, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int96) == *make_shared<IntegerType>(96, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int104) == *make_shared<IntegerType>(104, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int112) == *make_shared<IntegerType>(112, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int120) == *make_shared<IntegerType>(120, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int128) == *make_shared<IntegerType>(128, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int136) == *make_shared<IntegerType>(136, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int144) == *make_shared<IntegerType>(144, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int152) == *make_shared<IntegerType>(152, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int160) == *make_shared<IntegerType>(160, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int168) == *make_shared<IntegerType>(168, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int176) == *make_shared<IntegerType>(176, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int184) == *make_shared<IntegerType>(184, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int192) == *make_shared<IntegerType>(192, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int200) == *make_shared<IntegerType>(200, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int208) == *make_shared<IntegerType>(208, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int216) == *make_shared<IntegerType>(216, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int224) == *make_shared<IntegerType>(224, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int232) == *make_shared<IntegerType>(232, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int240) == *make_shared<IntegerType>(240, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int248) == *make_shared<IntegerType>(248, IntegerType::Modifier::Signed));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Int256) == *make_shared<IntegerType>(256, IntegerType::Modifier::Signed));
+-
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt) == *make_shared<IntegerType>(256, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt8) == *make_shared<IntegerType>(8, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt16) == *make_shared<IntegerType>(16, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt24) == *make_shared<IntegerType>(24, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt32) == *make_shared<IntegerType>(32, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt40) == *make_shared<IntegerType>(40, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt48) == *make_shared<IntegerType>(48, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt56) == *make_shared<IntegerType>(56, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt64) == *make_shared<IntegerType>(64, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt72) == *make_shared<IntegerType>(72, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt80) == *make_shared<IntegerType>(80, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt88) == *make_shared<IntegerType>(88, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt96) == *make_shared<IntegerType>(96, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt104) == *make_shared<IntegerType>(104, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt112) == *make_shared<IntegerType>(112, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt120) == *make_shared<IntegerType>(120, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt128) == *make_shared<IntegerType>(128, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt136) == *make_shared<IntegerType>(136, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt144) == *make_shared<IntegerType>(144, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt152) == *make_shared<IntegerType>(152, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt160) == *make_shared<IntegerType>(160, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt168) == *make_shared<IntegerType>(168, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt176) == *make_shared<IntegerType>(176, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt184) == *make_shared<IntegerType>(184, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt192) == *make_shared<IntegerType>(192, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt200) == *make_shared<IntegerType>(200, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt208) == *make_shared<IntegerType>(208, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt216) == *make_shared<IntegerType>(216, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt224) == *make_shared<IntegerType>(224, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt232) == *make_shared<IntegerType>(232, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt240) == *make_shared<IntegerType>(240, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt248) == *make_shared<IntegerType>(248, IntegerType::Modifier::Unsigned));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::UInt256) == *make_shared<IntegerType>(256, IntegerType::Modifier::Unsigned));
+-
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Byte) == *make_shared<FixedBytesType>(1));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes1) == *make_shared<FixedBytesType>(1));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes2) == *make_shared<FixedBytesType>(2));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes3) == *make_shared<FixedBytesType>(3));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes4) == *make_shared<FixedBytesType>(4));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes5) == *make_shared<FixedBytesType>(5));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes6) == *make_shared<FixedBytesType>(6));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes7) == *make_shared<FixedBytesType>(7));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes8) == *make_shared<FixedBytesType>(8));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes9) == *make_shared<FixedBytesType>(9));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes10) == *make_shared<FixedBytesType>(10));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes11) == *make_shared<FixedBytesType>(11));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes12) == *make_shared<FixedBytesType>(12));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes13) == *make_shared<FixedBytesType>(13));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes14) == *make_shared<FixedBytesType>(14));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes15) == *make_shared<FixedBytesType>(15));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes16) == *make_shared<FixedBytesType>(16));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes17) == *make_shared<FixedBytesType>(17));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes18) == *make_shared<FixedBytesType>(18));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes19) == *make_shared<FixedBytesType>(19));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes20) == *make_shared<FixedBytesType>(20));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes21) == *make_shared<FixedBytesType>(21));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes22) == *make_shared<FixedBytesType>(22));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes23) == *make_shared<FixedBytesType>(23));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes24) == *make_shared<FixedBytesType>(24));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes25) == *make_shared<FixedBytesType>(25));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes26) == *make_shared<FixedBytesType>(26));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes27) == *make_shared<FixedBytesType>(27));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes28) == *make_shared<FixedBytesType>(28));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes29) == *make_shared<FixedBytesType>(29));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes30) == *make_shared<FixedBytesType>(30));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes31) == *make_shared<FixedBytesType>(31));
+-	BOOST_CHECK(*Type::fromElementaryTypeName(Token::Bytes32) == *make_shared<FixedBytesType>(32));
++
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::Int, 0, 0)) == *make_shared<IntegerType>(256, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 8, 0)) == *make_shared<IntegerType>(8, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 16, 0)) == *make_shared<IntegerType>(16, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 24, 0)) == *make_shared<IntegerType>(24, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 32, 0)) == *make_shared<IntegerType>(32, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 40, 0)) == *make_shared<IntegerType>(40, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 48, 0)) == *make_shared<IntegerType>(48, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 56, 0)) == *make_shared<IntegerType>(56, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 64, 0)) == *make_shared<IntegerType>(64, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 72, 0)) == *make_shared<IntegerType>(72, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 80, 0)) == *make_shared<IntegerType>(80, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 88, 0)) == *make_shared<IntegerType>(88, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 96, 0)) == *make_shared<IntegerType>(96, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 104, 0)) == *make_shared<IntegerType>(104, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 112, 0)) == *make_shared<IntegerType>(112, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 120, 0)) == *make_shared<IntegerType>(120, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 128, 0)) == *make_shared<IntegerType>(128, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 136, 0)) == *make_shared<IntegerType>(136, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 144, 0)) == *make_shared<IntegerType>(144, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 152, 0)) == *make_shared<IntegerType>(152, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 160, 0)) == *make_shared<IntegerType>(160, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 168, 0)) == *make_shared<IntegerType>(168, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 176, 0)) == *make_shared<IntegerType>(176, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 184, 0)) == *make_shared<IntegerType>(184, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 192, 0)) == *make_shared<IntegerType>(192, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 200, 0)) == *make_shared<IntegerType>(200, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 208, 0)) == *make_shared<IntegerType>(208, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 216, 0)) == *make_shared<IntegerType>(216, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 224, 0)) == *make_shared<IntegerType>(224, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 232, 0)) == *make_shared<IntegerType>(232, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 240, 0)) == *make_shared<IntegerType>(240, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 248, 0)) == *make_shared<IntegerType>(248, IntegerType::Modifier::Signed));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::IntM, 256, 0)) == *make_shared<IntegerType>(256, IntegerType::Modifier::Signed));
++
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UInt, 0, 0)) == *make_shared<IntegerType>(256, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 8, 0)) == *make_shared<IntegerType>(8, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 16, 0)) == *make_shared<IntegerType>(16, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 24, 0)) == *make_shared<IntegerType>(24, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 32, 0)) == *make_shared<IntegerType>(32, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 40, 0)) == *make_shared<IntegerType>(40, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 48, 0)) == *make_shared<IntegerType>(48, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 56, 0)) == *make_shared<IntegerType>(56, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 64, 0)) == *make_shared<IntegerType>(64, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 72, 0)) == *make_shared<IntegerType>(72, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 80, 0)) == *make_shared<IntegerType>(80, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 88, 0)) == *make_shared<IntegerType>(88, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 96, 0)) == *make_shared<IntegerType>(96, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 104, 0)) == *make_shared<IntegerType>(104, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 112, 0)) == *make_shared<IntegerType>(112, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 120, 0)) == *make_shared<IntegerType>(120, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 128, 0)) == *make_shared<IntegerType>(128, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 136, 0)) == *make_shared<IntegerType>(136, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 144, 0)) == *make_shared<IntegerType>(144, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 152, 0)) == *make_shared<IntegerType>(152, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 160, 0)) == *make_shared<IntegerType>(160, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 168, 0)) == *make_shared<IntegerType>(168, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 176, 0)) == *make_shared<IntegerType>(176, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 184, 0)) == *make_shared<IntegerType>(184, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 192, 0)) == *make_shared<IntegerType>(192, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 200, 0)) == *make_shared<IntegerType>(200, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 208, 0)) == *make_shared<IntegerType>(208, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 216, 0)) == *make_shared<IntegerType>(216, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 224, 0)) == *make_shared<IntegerType>(224, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 232, 0)) == *make_shared<IntegerType>(232, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 240, 0)) == *make_shared<IntegerType>(240, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 248, 0)) == *make_shared<IntegerType>(248, IntegerType::Modifier::Unsigned));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::UIntM, 256, 0)) == *make_shared<IntegerType>(256, IntegerType::Modifier::Unsigned));
++
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::Byte, 0, 0)) == *make_shared<FixedBytesType>(1));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 1, 0)) == *make_shared<FixedBytesType>(1));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 2, 0)) == *make_shared<FixedBytesType>(2));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 3, 0)) == *make_shared<FixedBytesType>(3));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 4, 0)) == *make_shared<FixedBytesType>(4));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 5, 0)) == *make_shared<FixedBytesType>(5));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 6, 0)) == *make_shared<FixedBytesType>(6));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 7, 0)) == *make_shared<FixedBytesType>(7));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 8, 0)) == *make_shared<FixedBytesType>(8));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 9, 0)) == *make_shared<FixedBytesType>(9));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 10, 0)) == *make_shared<FixedBytesType>(10));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 11, 0)) == *make_shared<FixedBytesType>(11));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 12, 0)) == *make_shared<FixedBytesType>(12));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 13, 0)) == *make_shared<FixedBytesType>(13));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 14, 0)) == *make_shared<FixedBytesType>(14));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 15, 0)) == *make_shared<FixedBytesType>(15));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 16, 0)) == *make_shared<FixedBytesType>(16));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 17, 0)) == *make_shared<FixedBytesType>(17));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 18, 0)) == *make_shared<FixedBytesType>(18));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 19, 0)) == *make_shared<FixedBytesType>(19));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 20, 0)) == *make_shared<FixedBytesType>(20));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 21, 0)) == *make_shared<FixedBytesType>(21));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 22, 0)) == *make_shared<FixedBytesType>(22));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 23, 0)) == *make_shared<FixedBytesType>(23));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 24, 0)) == *make_shared<FixedBytesType>(24));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 25, 0)) == *make_shared<FixedBytesType>(25));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 26, 0)) == *make_shared<FixedBytesType>(26));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 27, 0)) == *make_shared<FixedBytesType>(27));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 28, 0)) == *make_shared<FixedBytesType>(28));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 29, 0)) == *make_shared<FixedBytesType>(29));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 30, 0)) == *make_shared<FixedBytesType>(30));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 31, 0)) == *make_shared<FixedBytesType>(31));
++	BOOST_CHECK(*Type::fromElementaryTypeName(ElementaryTypeNameToken(Token::BytesM, 32, 0)) == *make_shared<FixedBytesType>(32));
+ }
+ 
+ BOOST_AUTO_TEST_CASE(test_byte_is_alias_of_byte1)
+@@ -3164,6 +3165,99 @@ BOOST_AUTO_TEST_CASE(index_access_for_bytes)
+ 	BOOST_CHECK(success(text));
+ }
+ 
++BOOST_AUTO_TEST_CASE(uint7_and_uintM_as_identifier)
++{
++	char const* text = R"(
++		contract test {
++		string uintM = "Hello 4 you";
++			function f() {
++				uint8 uint7 = 3;
++				uint7 = 5;
++				string memory intM;
++				uint bytesM = 21;
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(varM_disqualified_as_keyword)
++{
++	char const* text = R"(
++		contract test {
++			function f() {
++				uintM something = 3;
++				intM should = 4;
++				bytesM fail = "now";
++			}
++		}
++	)";
++	BOOST_CHECK(!success(text));
++}
++
++BOOST_AUTO_TEST_CASE(long_uint_variable_fails)
++{
++	char const* text = R"(
++		contract test {
++			function f() {
++				uint99999999999999999999999999 something = 3;
++			}
++		}
++	)";
++	BOOST_CHECK(!success(text));
++}
++
++BOOST_AUTO_TEST_CASE(bytes10abc_is_identifier)
++{
++	char const* text = R"(
++		contract test {
++			function f() {
++				bytes32 bytes10abc = "abc";
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(int10abc_is_identifier)
++{
++	char const* text = R"(
++		contract test {
++			function f() {
++				uint uint10abc = 3;
++				int int10abc = 4;
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(invalid_fixed_types)
++{
++	char const* text = R"(
++		contract test {
++			function f() {
++				fixed0x7 a = .3;
++				fixed99999999999999999999999999999999999999x7 b = 9.5;
++			}
++		}
++	)";
++	BOOST_CHECK(!success(text));
++}
++
++BOOST_AUTO_TEST_CASE(library_functions_do_not_have_value)
++{
++	char const* text = R"(
++		library L { function l() {} }
++		contract test {
++			function f() {
++				L.l.value;
++			}
++		}
++	)";
++	BOOST_CHECK(!success(text));
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityOptimizer.cpp b/test/libsolidity/SolidityOptimizer.cpp
+index 2f1eb04e..6aa90973 100644
+--- a/test/libsolidity/SolidityOptimizer.cpp
++++ b/test/libsolidity/SolidityOptimizer.cpp
+@@ -390,6 +390,20 @@ BOOST_AUTO_TEST_CASE(incorrect_storage_access_bug)
+ 	compareVersions("f()");
+ }
+ 
++BOOST_AUTO_TEST_CASE(sequence_number_for_calls)
++{
++	// This is a test for a bug that was present because we did not increment the sequence
++	// number for CALLs - CALLs can read and write from memory (and DELEGATECALLs can do the same
++	// to storage), so the sequence number should be incremented.
++	char const* sourceCode = R"(
++		contract test {
++			function f(string a, string b) returns (bool) { return sha256(a) == sha256(b); }
++		}
++	)";
++	compileBothVersions(sourceCode);
++	compareVersions("f(string,string)", 0x40, 0x80, 3, "abc", 3, "def");
++}
++
+ BOOST_AUTO_TEST_CASE(cse_intermediate_swap)
+ {
+ 	eth::KnownState state;

@@ -1,0 +1,4361 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4b887365..eb85e37b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,7 +8,7 @@ include(EthPolicy)
+ eth_policy()
+ 
+ # project name and version should be set after cmake_policy CMP0048
+-set(PROJECT_VERSION "0.1.7")
++set(PROJECT_VERSION "0.2.0")
+ project(solidity VERSION ${PROJECT_VERSION})
+ 
+ # Let's find our dependencies
+diff --git a/libsolidity/CMakeLists.txt b/libsolidity/CMakeLists.txt
+index d59afc2d..fa2f4e9c 100644
+--- a/libsolidity/CMakeLists.txt
++++ b/libsolidity/CMakeLists.txt
+@@ -14,7 +14,7 @@ file(GLOB HEADERS "*/*.h")
+ include_directories(BEFORE ..)
+ add_library(${EXECUTABLE} ${SRC_LIST} ${HEADERS})
+ 
+-eth_use(${EXECUTABLE} REQUIRED Dev::devcore Eth::evmasm)
++eth_use(${EXECUTABLE} REQUIRED Dev::devcore Eth::evmcore Eth::evmasm)
+ 
+ install( TARGETS ${EXECUTABLE} RUNTIME DESTINATION bin ARCHIVE DESTINATION lib LIBRARY DESTINATION lib )
+ install( FILES ${HEADERS} DESTINATION include/${EXECUTABLE} )
+diff --git a/libsolidity/analysis/GlobalContext.cpp b/libsolidity/analysis/GlobalContext.cpp
+index 20f8272f..a7ffcfad 100644
+--- a/libsolidity/analysis/GlobalContext.cpp
++++ b/libsolidity/analysis/GlobalContext.cpp
+@@ -39,7 +39,13 @@ m_magicVariables(vector<shared_ptr<MagicVariableDeclaration const>>{make_shared<
+ 					make_shared<MagicVariableDeclaration>("tx", make_shared<MagicType>(MagicType::Kind::Transaction)),
+ 					make_shared<MagicVariableDeclaration>("now", make_shared<IntegerType>(256)),
+ 					make_shared<MagicVariableDeclaration>("suicide",
+-							make_shared<FunctionType>(strings{"address"}, strings{}, FunctionType::Location::Suicide)),
++							make_shared<FunctionType>(strings{"address"}, strings{}, FunctionType::Location::Selfdestruct)),
++					make_shared<MagicVariableDeclaration>("selfdestruct",
++							make_shared<FunctionType>(strings{"address"}, strings{}, FunctionType::Location::Selfdestruct)),
++					make_shared<MagicVariableDeclaration>("addmod",
++						make_shared<FunctionType>(strings{"uint256", "uint256", "uint256"}, strings{"uint256"}, FunctionType::Location::AddMod)),
++					make_shared<MagicVariableDeclaration>("mulmod",
++						make_shared<FunctionType>(strings{"uint256", "uint256", "uint256"}, strings{"uint256"}, FunctionType::Location::MulMod)),
+ 					make_shared<MagicVariableDeclaration>("sha3",
+ 							make_shared<FunctionType>(strings(), strings{"bytes32"}, FunctionType::Location::SHA3, true)),
+ 					make_shared<MagicVariableDeclaration>("log0",
+diff --git a/libsolidity/analysis/NameAndTypeResolver.cpp b/libsolidity/analysis/NameAndTypeResolver.cpp
+index 806f1322..612989e1 100644
+--- a/libsolidity/analysis/NameAndTypeResolver.cpp
++++ b/libsolidity/analysis/NameAndTypeResolver.cpp
+@@ -49,7 +49,7 @@ bool NameAndTypeResolver::registerDeclarations(SourceUnit& _sourceUnit)
+ 	{
+ 		DeclarationRegistrationHelper registrar(m_scopes, _sourceUnit, m_errors);
+ 	}
+-	catch (FatalError const& _e)
++	catch (FatalError const&)
+ 	{
+ 		if (m_errors.empty())
+ 			throw; // Something is weird here, rather throw again.
+@@ -64,7 +64,7 @@ bool NameAndTypeResolver::resolveNamesAndTypes(ContractDefinition& _contract)
+ 	{
+ 		m_currentScope = &m_scopes[nullptr];
+ 
+-		ReferencesResolver resolver(m_errors, *this, &_contract, nullptr);
++		ReferencesResolver resolver(m_errors, *this, nullptr);
+ 		bool success = true;
+ 		for (ASTPointer<InheritanceSpecifier> const& baseContract: _contract.baseContracts())
+ 			if (!resolver.resolve(*baseContract))
+@@ -84,36 +84,11 @@ bool NameAndTypeResolver::resolveNamesAndTypes(ContractDefinition& _contract)
+ 				importInheritedScope(*base);
+ 		}
+ 
+-		for (ASTPointer<StructDefinition> const& structDef: _contract.definedStructs())
+-			if (!resolver.resolve(*structDef))
+-				success = false;
+-		for (ASTPointer<EnumDefinition> const& enumDef: _contract.definedEnums())
+-			if (!resolver.resolve(*enumDef))
+-				success = false;
+-		for (ASTPointer<VariableDeclaration> const& variable: _contract.stateVariables())
+-			if (!resolver.resolve(*variable))
+-				success = false;
+-		for (ASTPointer<EventDefinition> const& event: _contract.events())
+-			if (!resolver.resolve(*event))
+-				success = false;
+ 		// these can contain code, only resolve parameters for now
+-		for (ASTPointer<ModifierDefinition> const& modifier: _contract.functionModifiers())
++		for (ASTPointer<ASTNode> const& node: _contract.subNodes())
+ 		{
+-			m_currentScope = &m_scopes[modifier.get()];
+-			ReferencesResolver resolver(m_errors, *this, &_contract, nullptr);
+-			if (!resolver.resolve(*modifier))
+-				success = false;
+-		}
+-
+-		for (ASTPointer<FunctionDefinition> const& function: _contract.definedFunctions())
+-		{
+-			m_currentScope = &m_scopes[function.get()];
+-			if (!ReferencesResolver(
+-				m_errors,
+-				*this,
+-				&_contract,
+-				function->returnParameterList().get()
+-			).resolve(*function))
++			m_currentScope = &m_scopes[m_scopes.count(node.get()) ? node.get() : &_contract];
++			if (!resolver.resolve(*node))
+ 				success = false;
+ 		}
+ 
+@@ -123,21 +98,20 @@ bool NameAndTypeResolver::resolveNamesAndTypes(ContractDefinition& _contract)
+ 		m_currentScope = &m_scopes[&_contract];
+ 
+ 		// now resolve references inside the code
+-		for (ASTPointer<ModifierDefinition> const& modifier: _contract.functionModifiers())
++		for (ModifierDefinition const* modifier: _contract.functionModifiers())
+ 		{
+-			m_currentScope = &m_scopes[modifier.get()];
+-			ReferencesResolver resolver(m_errors, *this, &_contract, nullptr, true);
++			m_currentScope = &m_scopes[modifier];
++			ReferencesResolver resolver(m_errors, *this, nullptr, true);
+ 			if (!resolver.resolve(*modifier))
+ 				success = false;
+ 		}
+ 
+-		for (ASTPointer<FunctionDefinition> const& function: _contract.definedFunctions())
++		for (FunctionDefinition const* function: _contract.definedFunctions())
+ 		{
+-			m_currentScope = &m_scopes[function.get()];
++			m_currentScope = &m_scopes[function];
+ 			if (!ReferencesResolver(
+ 				m_errors,
+ 				*this,
+-				&_contract,
+ 				function->returnParameterList().get(),
+ 				true
+ 			).resolve(*function))
+@@ -146,7 +120,7 @@ bool NameAndTypeResolver::resolveNamesAndTypes(ContractDefinition& _contract)
+ 		if (!success)
+ 			return false;
+ 	}
+-	catch (FatalError const& _e)
++	catch (FatalError const&)
+ 	{
+ 		if (m_errors.empty())
+ 			throw; // Something is weird here, rather throw again.
+@@ -162,7 +136,7 @@ bool NameAndTypeResolver::updateDeclaration(Declaration const& _declaration)
+ 		m_scopes[nullptr].registerDeclaration(_declaration, false, true);
+ 		solAssert(_declaration.scope() == nullptr, "Updated declaration outside global scope.");
+ 	}
+-	catch (FatalError const& _error)
++	catch (FatalError const&)
+ 	{
+ 		if (m_errors.empty())
+ 			throw; // Something is weird here, rather throw again.
+diff --git a/libsolidity/analysis/NameAndTypeResolver.h b/libsolidity/analysis/NameAndTypeResolver.h
+index 0d9b2477..1547a274 100644
+--- a/libsolidity/analysis/NameAndTypeResolver.h
++++ b/libsolidity/analysis/NameAndTypeResolver.h
+@@ -160,8 +160,8 @@ private:
+ 	void fatalDeclarationError(SourceLocation _sourceLocation, std::string const& _description);
+ 
+ 	std::map<ASTNode const*, DeclarationContainer>& m_scopes;
+-	Declaration const* m_currentScope;
+-	VariableScope* m_currentFunction;
++	Declaration const* m_currentScope = nullptr;
++	VariableScope* m_currentFunction = nullptr;
+ 	ErrorList& m_errors;
+ };
+ 
+diff --git a/libsolidity/analysis/ReferencesResolver.cpp b/libsolidity/analysis/ReferencesResolver.cpp
+index 95643578..2fe53e8b 100644
+--- a/libsolidity/analysis/ReferencesResolver.cpp
++++ b/libsolidity/analysis/ReferencesResolver.cpp
+@@ -31,29 +31,13 @@ using namespace dev;
+ using namespace dev::solidity;
+ 
+ 
+-bool ReferencesResolver::visit(Return const& _return)
+-{
+-	_return.annotation().functionReturnParameters = m_returnParameters;
+-	return true;
+-}
+-
+-bool ReferencesResolver::visit(UserDefinedTypeName const& _typeName)
+-{
+-	Declaration const* declaration = m_resolver.pathFromCurrentScope(_typeName.namePath());
+-	if (!declaration)
+-		fatalDeclarationError(_typeName.location(), "Identifier not found or not unique.");
+-
+-	_typeName.annotation().referencedDeclaration = declaration;
+-	return true;
+-}
+-
+-bool ReferencesResolver::resolve(ASTNode& _root)
++bool ReferencesResolver::resolve(ASTNode const& _root)
+ {
+ 	try
+ 	{
+ 		_root.accept(*this);
+ 	}
+-	catch (FatalError const& e)
++	catch (FatalError const&)
+ 	{
+ 		solAssert(m_errorOccurred, "");
+ 	}
+@@ -66,16 +50,74 @@ bool ReferencesResolver::visit(Identifier const& _identifier)
+ 	if (declarations.empty())
+ 		fatalDeclarationError(_identifier.location(), "Undeclared identifier.");
+ 	else if (declarations.size() == 1)
+-	{
+ 		_identifier.annotation().referencedDeclaration = declarations.front();
+-		_identifier.annotation().contractScope = m_currentContract;
+-	}
+ 	else
+ 		_identifier.annotation().overloadedDeclarations =
+ 			m_resolver.cleanedDeclarations(_identifier, declarations);
+ 	return false;
+ }
+ 
++bool ReferencesResolver::visit(ElementaryTypeName const& _typeName)
++{
++	_typeName.annotation().type = Type::fromElementaryTypeName(_typeName.typeName());
++	return true;
++}
++
++void ReferencesResolver::endVisit(UserDefinedTypeName const& _typeName)
++{
++	Declaration const* declaration = m_resolver.pathFromCurrentScope(_typeName.namePath());
++	if (!declaration)
++		fatalDeclarationError(_typeName.location(), "Identifier not found or not unique.");
++
++	_typeName.annotation().referencedDeclaration = declaration;
++
++	if (StructDefinition const* structDef = dynamic_cast<StructDefinition const*>(declaration))
++		_typeName.annotation().type = make_shared<StructType>(*structDef);
++	else if (EnumDefinition const* enumDef = dynamic_cast<EnumDefinition const*>(declaration))
++		_typeName.annotation().type = make_shared<EnumType>(*enumDef);
++	else if (ContractDefinition const* contract = dynamic_cast<ContractDefinition const*>(declaration))
++		_typeName.annotation().type = make_shared<ContractType>(*contract);
++	else
++		fatalTypeError(_typeName.location(), "Name has to refer to a struct, enum or contract.");
++}
++
++void ReferencesResolver::endVisit(Mapping const& _typeName)
++{
++	TypePointer keyType = _typeName.keyType().annotation().type;
++	TypePointer valueType = _typeName.valueType().annotation().type;
++	// Convert key type to memory.
++	keyType = ReferenceType::copyForLocationIfReference(DataLocation::Memory, keyType);
++	// Convert value type to storage reference.
++	valueType = ReferenceType::copyForLocationIfReference(DataLocation::Storage, valueType);
++	_typeName.annotation().type = make_shared<MappingType>(keyType, valueType);
++}
++
++void ReferencesResolver::endVisit(ArrayTypeName const& _typeName)
++{
++	TypePointer baseType = _typeName.baseType().annotation().type;
++	if (baseType->storageBytes() == 0)
++		fatalTypeError(_typeName.baseType().location(), "Illegal base type of storage size zero for array.");
++	if (Expression const* length = _typeName.length())
++	{
++		if (!length->annotation().type)
++			ConstantEvaluator e(*length);
++
++		auto const* lengthType = dynamic_cast<IntegerConstantType const*>(length->annotation().type.get());
++		if (!lengthType)
++			fatalTypeError(length->location(), "Invalid array length.");
++		else
++			_typeName.annotation().type = make_shared<ArrayType>(DataLocation::Storage, baseType, lengthType->literalValue(nullptr));
++	}
++	else
++		_typeName.annotation().type = make_shared<ArrayType>(DataLocation::Storage, baseType);
++}
++
++bool ReferencesResolver::visit(Return const& _return)
++{
++	_return.annotation().functionReturnParameters = m_returnParameters;
++	return true;
++}
++
+ void ReferencesResolver::endVisit(VariableDeclaration const& _variable)
+ {
+ 	if (_variable.annotation().type)
+@@ -84,21 +126,23 @@ void ReferencesResolver::endVisit(VariableDeclaration const& _variable)
+ 	TypePointer type;
+ 	if (_variable.typeName())
+ 	{
+-		type = typeFor(*_variable.typeName());
++		type = _variable.typeName()->annotation().type;
+ 		using Location = VariableDeclaration::Location;
+-		Location loc = _variable.referenceLocation();
++		Location varLoc = _variable.referenceLocation();
++		DataLocation typeLoc = DataLocation::Memory;
+ 		// References are forced to calldata for external function parameters (not return)
+ 		// and memory for parameters (also return) of publicly visible functions.
+ 		// They default to memory for function parameters and storage for local variables.
+ 		// As an exception, "storage" is allowed for library functions.
+ 		if (auto ref = dynamic_cast<ReferenceType const*>(type.get()))
+ 		{
++			bool isPointer = true;
+ 			if (_variable.isExternalCallableParameter())
+ 			{
+ 				auto const& contract = dynamic_cast<ContractDefinition const&>(*_variable.scope()->scope());
+ 				if (contract.isLibrary())
+ 				{
+-					if (loc == Location::Memory)
++					if (varLoc == Location::Memory)
+ 						fatalTypeError(_variable.location(),
+ 							"Location has to be calldata or storage for external "
+ 							"library functions (remove the \"memory\" keyword)."
+@@ -107,50 +151,52 @@ void ReferencesResolver::endVisit(VariableDeclaration const& _variable)
+ 				else
+ 				{
+ 					// force location of external function parameters (not return) to calldata
+-					if (loc != Location::Default)
++					if (varLoc != Location::Default)
+ 						fatalTypeError(_variable.location(),
+ 							"Location has to be calldata for external functions "
+ 							"(remove the \"memory\" or \"storage\" keyword)."
+ 						);
+ 				}
+-				if (loc == Location::Default)
+-					type = ref->copyForLocation(DataLocation::CallData, true);
++				if (varLoc == Location::Default)
++					typeLoc = DataLocation::CallData;
++				else
++					typeLoc = varLoc == Location::Memory ? DataLocation::Memory : DataLocation::Storage;
+ 			}
+ 			else if (_variable.isCallableParameter() && _variable.scope()->isPublic())
+ 			{
+ 				auto const& contract = dynamic_cast<ContractDefinition const&>(*_variable.scope()->scope());
+ 				// force locations of public or external function (return) parameters to memory
+-				if (loc == Location::Storage && !contract.isLibrary())
++				if (varLoc == Location::Storage && !contract.isLibrary())
+ 					fatalTypeError(_variable.location(),
+ 						"Location has to be memory for publicly visible functions "
+ 						"(remove the \"storage\" keyword)."
+ 					);
+-				if (loc == Location::Default || !contract.isLibrary())
+-					type = ref->copyForLocation(DataLocation::Memory, true);
++				if (varLoc == Location::Default || !contract.isLibrary())
++					typeLoc = DataLocation::Memory;
++				else
++					typeLoc = varLoc == Location::Memory ? DataLocation::Memory : DataLocation::Storage;
+ 			}
+ 			else
+ 			{
+ 				if (_variable.isConstant())
+ 				{
+-					if (loc != Location::Default && loc != Location::Memory)
++					if (varLoc != Location::Default && varLoc != Location::Memory)
+ 						fatalTypeError(
+ 							_variable.location(),
+ 							"Storage location has to be \"memory\" (or unspecified) for constants."
+ 						);
+-					loc = Location::Memory;
++					typeLoc = DataLocation::Memory;
+ 				}
+-				if (loc == Location::Default)
+-					loc = _variable.isCallableParameter() ? Location::Memory : Location::Storage;
+-				bool isPointer = !_variable.isStateVariable();
+-				type = ref->copyForLocation(
+-					loc == Location::Memory ?
+-					DataLocation::Memory :
+-					DataLocation::Storage,
+-					isPointer
+-				);
++				else if (varLoc == Location::Default)
++					typeLoc = _variable.isCallableParameter() ? DataLocation::Memory : DataLocation::Storage;
++				else
++					typeLoc = varLoc == Location::Memory ? DataLocation::Memory : DataLocation::Storage;
++				isPointer = !_variable.isStateVariable();
+ 			}
++
++			type = ref->copyForLocation(typeLoc, isPointer);
+ 		}
+-		else if (loc != Location::Default && !ref)
++		else if (varLoc != Location::Default && !ref)
+ 			fatalTypeError(_variable.location(), "Storage location can only be given for array or struct types.");
+ 
+ 		if (!type)
+@@ -164,61 +210,6 @@ void ReferencesResolver::endVisit(VariableDeclaration const& _variable)
+ 	_variable.annotation().type = type;
+ }
+ 
+-TypePointer ReferencesResolver::typeFor(TypeName const& _typeName)
+-{
+-	if (_typeName.annotation().type)
+-		return _typeName.annotation().type;
+-
+-	TypePointer type;
+-	if (auto elemTypeName = dynamic_cast<ElementaryTypeName const*>(&_typeName))
+-		type = Type::fromElementaryTypeName(elemTypeName->typeName());
+-	else if (auto typeName = dynamic_cast<UserDefinedTypeName const*>(&_typeName))
+-	{
+-		Declaration const* declaration = typeName->annotation().referencedDeclaration;
+-		solAssert(!!declaration, "");
+-
+-		if (StructDefinition const* structDef = dynamic_cast<StructDefinition const*>(declaration))
+-			type = make_shared<StructType>(*structDef);
+-		else if (EnumDefinition const* enumDef = dynamic_cast<EnumDefinition const*>(declaration))
+-			type = make_shared<EnumType>(*enumDef);
+-		else if (ContractDefinition const* contract = dynamic_cast<ContractDefinition const*>(declaration))
+-			type = make_shared<ContractType>(*contract);
+-		else
+-			fatalTypeError(typeName->location(), "Name has to refer to a struct, enum or contract.");
+-	}
+-	else if (auto mapping = dynamic_cast<Mapping const*>(&_typeName))
+-	{
+-		TypePointer keyType = typeFor(mapping->keyType());
+-		TypePointer valueType = typeFor(mapping->valueType());
+-		// Convert key type to memory.
+-		keyType = ReferenceType::copyForLocationIfReference(DataLocation::Memory, keyType);
+-		// Convert value type to storage reference.
+-		valueType = ReferenceType::copyForLocationIfReference(DataLocation::Storage, valueType);
+-		type = make_shared<MappingType>(keyType, valueType);
+-	}
+-	else if (auto arrayType = dynamic_cast<ArrayTypeName const*>(&_typeName))
+-	{
+-		TypePointer baseType = typeFor(arrayType->baseType());
+-		if (baseType->storageBytes() == 0)
+-			fatalTypeError(arrayType->baseType().location(), "Illegal base type of storage size zero for array.");
+-		if (Expression const* length = arrayType->length())
+-		{
+-			if (!length->annotation().type)
+-				ConstantEvaluator e(*length);
+-
+-			auto const* lengthType = dynamic_cast<IntegerConstantType const*>(length->annotation().type.get());
+-			if (!lengthType)
+-				fatalTypeError(length->location(), "Invalid array length.");
+-			else
+-				type = make_shared<ArrayType>(DataLocation::Storage, baseType, lengthType->literalValue(nullptr));
+-		}
+-		else
+-			type = make_shared<ArrayType>(DataLocation::Storage, baseType);
+-	}
+-
+-	return _typeName.annotation().type = move(type);
+-}
+-
+ void ReferencesResolver::typeError(SourceLocation const& _location, string const& _description)
+ {
+ 	auto err = make_shared<Error>(Error::Type::TypeError);
+diff --git a/libsolidity/analysis/ReferencesResolver.h b/libsolidity/analysis/ReferencesResolver.h
+index 21cb1d35..a2d71dc3 100644
+--- a/libsolidity/analysis/ReferencesResolver.h
++++ b/libsolidity/analysis/ReferencesResolver.h
+@@ -45,29 +45,28 @@ public:
+ 	ReferencesResolver(
+ 		ErrorList& _errors,
+ 		NameAndTypeResolver& _resolver,
+-		ContractDefinition const* _currentContract,
+ 		ParameterList const* _returnParameters,
+ 		bool _resolveInsideCode = false
+ 	):
+ 		m_errors(_errors),
+ 		m_resolver(_resolver),
+-		m_currentContract(_currentContract),
+ 		m_returnParameters(_returnParameters),
+ 		m_resolveInsideCode(_resolveInsideCode)
+ 	{}
+ 
+ 	/// @returns true if no errors during resolving
+-	bool resolve(ASTNode& _root);
++	bool resolve(ASTNode const& _root);
+ 
+ private:
+ 	virtual bool visit(Block const&) override { return m_resolveInsideCode; }
+ 	virtual bool visit(Identifier const& _identifier) override;
+-	virtual bool visit(UserDefinedTypeName const& _typeName) override;
++	virtual bool visit(ElementaryTypeName const& _typeName) override;
++	virtual void endVisit(UserDefinedTypeName const& _typeName) override;
++	virtual void endVisit(Mapping const& _typeName) override;
++	virtual void endVisit(ArrayTypeName const& _typeName) override;
+ 	virtual bool visit(Return const& _return) override;
+ 	virtual void endVisit(VariableDeclaration const& _variable) override;
+ 
+-	TypePointer typeFor(TypeName const& _typeName);
+-
+ 	/// Adds a new error to the list of errors.
+ 	void typeError(SourceLocation const& _location, std::string const& _description);
+ 
+@@ -82,7 +81,6 @@ private:
+ 
+ 	ErrorList& m_errors;
+ 	NameAndTypeResolver& m_resolver;
+-	ContractDefinition const* m_currentContract;
+ 	ParameterList const* m_returnParameters;
+ 	bool const m_resolveInsideCode;
+ 	bool m_errorOccurred = false;
+diff --git a/libsolidity/analysis/TypeChecker.cpp b/libsolidity/analysis/TypeChecker.cpp
+index 0990a9e4..851266bd 100644
+--- a/libsolidity/analysis/TypeChecker.cpp
++++ b/libsolidity/analysis/TypeChecker.cpp
+@@ -60,7 +60,10 @@ TypePointer const& TypeChecker::type(VariableDeclaration const& _variable) const
+ 
+ bool TypeChecker::visit(ContractDefinition const& _contract)
+ {
++	m_scope = &_contract;
++
+ 	// We force our own visiting order here.
++	//@TODO structs will be visited again below, but it is probably fine.
+ 	ASTNode::listAccept(_contract.definedStructs(), *this);
+ 	ASTNode::listAccept(_contract.baseContracts(), *this);
+ 
+@@ -74,7 +77,7 @@ bool TypeChecker::visit(ContractDefinition const& _contract)
+ 		typeError(function->returnParameterList()->location(), "Non-empty \"returns\" directive for constructor.");
+ 
+ 	FunctionDefinition const* fallbackFunction = nullptr;
+-	for (ASTPointer<FunctionDefinition> const& function: _contract.definedFunctions())
++	for (FunctionDefinition const* function: _contract.definedFunctions())
+ 	{
+ 		if (function->name().empty())
+ 		{
+@@ -86,7 +89,7 @@ bool TypeChecker::visit(ContractDefinition const& _contract)
+ 			}
+ 			else
+ 			{
+-				fallbackFunction = function.get();
++				fallbackFunction = function;
+ 				if (!fallbackFunction->parameters().empty())
+ 					typeError(fallbackFunction->parameterList().location(), "Fallback function cannot take parameters.");
+ 			}
+@@ -95,10 +98,7 @@ bool TypeChecker::visit(ContractDefinition const& _contract)
+ 			_contract.annotation().isFullyImplemented = false;
+ 	}
+ 
+-	ASTNode::listAccept(_contract.stateVariables(), *this);
+-	ASTNode::listAccept(_contract.events(), *this);
+-	ASTNode::listAccept(_contract.functionModifiers(), *this);
+-	ASTNode::listAccept(_contract.definedFunctions(), *this);
++	ASTNode::listAccept(_contract.subNodes(), *this);
+ 
+ 	checkContractExternalTypeClashes(_contract);
+ 	// check for hash collisions in function signatures
+@@ -125,8 +125,8 @@ void TypeChecker::checkContractDuplicateFunctions(ContractDefinition const& _con
+ 	/// Checks that two functions with the same name defined in this contract have different
+ 	/// argument types and that there is at most one constructor.
+ 	map<string, vector<FunctionDefinition const*>> functions;
+-	for (ASTPointer<FunctionDefinition> const& function: _contract.definedFunctions())
+-		functions[function->name()].push_back(function.get());
++	for (FunctionDefinition const* function: _contract.definedFunctions())
++		functions[function->name()].push_back(function);
+ 
+ 	// Constructor
+ 	if (functions[_contract.name()].size() > 1)
+@@ -170,7 +170,7 @@ void TypeChecker::checkContractAbstractFunctions(ContractDefinition const& _cont
+ 
+ 	// Search from base to derived
+ 	for (ContractDefinition const* contract: boost::adaptors::reverse(_contract.annotation().linearizedBaseContracts))
+-		for (ASTPointer<FunctionDefinition> const& function: contract->definedFunctions())
++		for (FunctionDefinition const* function: contract->definedFunctions())
+ 		{
+ 			auto& overloads = functions[function->name()];
+ 			FunctionTypePointer funType = make_shared<FunctionType>(*function);
+@@ -246,7 +246,7 @@ void TypeChecker::checkContractIllegalOverrides(ContractDefinition const& _contr
+ 	// We search from derived to base, so the stored item causes the error.
+ 	for (ContractDefinition const* contract: _contract.annotation().linearizedBaseContracts)
+ 	{
+-		for (ASTPointer<FunctionDefinition> const& function: contract->definedFunctions())
++		for (FunctionDefinition const* function: contract->definedFunctions())
+ 		{
+ 			if (function->isConstructor())
+ 				continue; // constructors can neither be overridden nor override anything
+@@ -267,14 +267,14 @@ void TypeChecker::checkContractIllegalOverrides(ContractDefinition const& _contr
+ 				)
+ 					typeError(overriding->location(), "Override changes extended function signature.");
+ 			}
+-			functions[name].push_back(function.get());
++			functions[name].push_back(function);
+ 		}
+-		for (ASTPointer<ModifierDefinition> const& modifier: contract->functionModifiers())
++		for (ModifierDefinition const* modifier: contract->functionModifiers())
+ 		{
+ 			string const& name = modifier->name();
+ 			ModifierDefinition const*& override = modifiers[name];
+ 			if (!override)
+-				override = modifier.get();
++				override = modifier;
+ 			else if (ModifierType(*override) != ModifierType(*modifier))
+ 				typeError(override->location(), "Override changes modifier signature.");
+ 			if (!functions[name].empty())
+@@ -288,20 +288,20 @@ void TypeChecker::checkContractExternalTypeClashes(ContractDefinition const& _co
+ 	map<string, vector<pair<Declaration const*, FunctionTypePointer>>> externalDeclarations;
+ 	for (ContractDefinition const* contract: _contract.annotation().linearizedBaseContracts)
+ 	{
+-		for (ASTPointer<FunctionDefinition> const& f: contract->definedFunctions())
++		for (FunctionDefinition const* f: contract->definedFunctions())
+ 			if (f->isPartOfExternalInterface())
+ 			{
+ 				auto functionType = make_shared<FunctionType>(*f);
+ 				externalDeclarations[functionType->externalSignature()].push_back(
+-					make_pair(f.get(), functionType)
++					make_pair(f, functionType)
+ 				);
+ 			}
+-		for (ASTPointer<VariableDeclaration> const& v: contract->stateVariables())
++		for (VariableDeclaration const* v: contract->stateVariables())
+ 			if (v->isPartOfExternalInterface())
+ 			{
+ 				auto functionType = make_shared<FunctionType>(*v);
+ 				externalDeclarations[functionType->externalSignature()].push_back(
+-					make_pair(v.get(), functionType)
++					make_pair(v, functionType)
+ 				);
+ 			}
+ 	}
+@@ -356,7 +356,16 @@ void TypeChecker::endVisit(InheritanceSpecifier const& _inheritance)
+ 				" to " +
+ 				parameterTypes[i]->toString() +
+ 				" requested."
+-			);
++						);
++}
++
++void TypeChecker::endVisit(UsingForDirective const& _usingFor)
++{
++	ContractDefinition const* library = dynamic_cast<ContractDefinition const*>(
++		_usingFor.libraryName().annotation().referencedDeclaration
++	);
++	if (!library || !library->isLibrary())
++		typeError(_usingFor.libraryName().location(), "Library name expected.");
+ }
+ 
+ bool TypeChecker::visit(StructDefinition const& _struct)
+@@ -1045,34 +1054,63 @@ bool TypeChecker::visit(FunctionCall const& _functionCall)
+ 
+ void TypeChecker::endVisit(NewExpression const& _newExpression)
+ {
+-	auto contract = dynamic_cast<ContractDefinition const*>(&dereference(_newExpression.contractName()));
++	TypePointer type = _newExpression.typeName().annotation().type;
++	solAssert(!!type, "Type name not resolved.");
+ 
+-	if (!contract)
+-		fatalTypeError(_newExpression.location(), "Identifier is not a contract.");
+-	if (!contract->annotation().isFullyImplemented)
+-		typeError(_newExpression.location(), "Trying to create an instance of an abstract contract.");
+-
+-	auto scopeContract = _newExpression.contractName().annotation().contractScope;
+-	scopeContract->annotation().contractDependencies.insert(contract);
+-	solAssert(
+-		!contract->annotation().linearizedBaseContracts.empty(),
+-		"Linearized base contracts not yet available."
+-	);
+-	if (contractDependenciesAreCyclic(*scopeContract))
+-		typeError(
+-			_newExpression.location(),
+-			"Circular reference for contract creation (cannot create instance of derived or same contract)."
++	if (auto contractName = dynamic_cast<UserDefinedTypeName const*>(&_newExpression.typeName()))
++	{
++		auto contract = dynamic_cast<ContractDefinition const*>(&dereference(*contractName));
++
++		if (!contract)
++			fatalTypeError(_newExpression.location(), "Identifier is not a contract.");
++		if (!contract->annotation().isFullyImplemented)
++			typeError(_newExpression.location(), "Trying to create an instance of an abstract contract.");
++
++		solAssert(!!m_scope, "");
++		m_scope->annotation().contractDependencies.insert(contract);
++		solAssert(
++			!contract->annotation().linearizedBaseContracts.empty(),
++			"Linearized base contracts not yet available."
+ 		);
++		if (contractDependenciesAreCyclic(*m_scope))
++			typeError(
++				_newExpression.location(),
++				"Circular reference for contract creation (cannot create instance of derived or same contract)."
++			);
+ 
+-	auto contractType = make_shared<ContractType>(*contract);
+-	TypePointers const& parameterTypes = contractType->constructorType()->parameterTypes();
+-	_newExpression.annotation().type = make_shared<FunctionType>(
+-		parameterTypes,
+-		TypePointers{contractType},
+-		strings(),
+-		strings(),
+-		FunctionType::Location::Creation
+-	);
++		auto contractType = make_shared<ContractType>(*contract);
++		TypePointers const& parameterTypes = contractType->constructorType()->parameterTypes();
++		_newExpression.annotation().type = make_shared<FunctionType>(
++			parameterTypes,
++			TypePointers{contractType},
++			strings(),
++			strings(),
++			FunctionType::Location::Creation
++		);
++	}
++	else if (type->category() == Type::Category::Array)
++	{
++		if (!type->canLiveOutsideStorage())
++			fatalTypeError(
++				_newExpression.typeName().location(),
++				"Type cannot live outside storage."
++			);
++		if (!type->isDynamicallySized())
++			typeError(
++				_newExpression.typeName().location(),
++				"Length has to be placed in parentheses after the array type for new expression."
++			);
++		type = ReferenceType::copyForLocationIfReference(DataLocation::Memory, type);
++		_newExpression.annotation().type = make_shared<FunctionType>(
++			TypePointers{make_shared<IntegerType>(256)},
++			TypePointers{type},
++			strings(),
++			strings(),
++			FunctionType::Location::ObjectCreation
++		);
++	}
++	else
++		fatalTypeError(_newExpression.location(), "Contract or array type expected.");
+ }
+ 
+ bool TypeChecker::visit(MemberAccess const& _memberAccess)
+@@ -1083,14 +1121,14 @@ bool TypeChecker::visit(MemberAccess const& _memberAccess)
+ 
+ 	// Retrieve the types of the arguments if this is used to call a function.
+ 	auto const& argumentTypes = _memberAccess.annotation().argumentTypes;
+-	MemberList::MemberMap possibleMembers = exprType->members().membersByName(memberName);
++	MemberList::MemberMap possibleMembers = exprType->members(m_scope).membersByName(memberName);
+ 	if (possibleMembers.size() > 1 && argumentTypes)
+ 	{
+ 		// do overload resolution
+ 		for (auto it = possibleMembers.begin(); it != possibleMembers.end();)
+ 			if (
+ 				it->type->category() == Type::Category::Function &&
+-				!dynamic_cast<FunctionType const&>(*it->type).canTakeArguments(*argumentTypes)
++				!dynamic_cast<FunctionType const&>(*it->type).canTakeArguments(*argumentTypes, exprType)
+ 			)
+ 				it = possibleMembers.erase(it);
+ 			else
+@@ -1102,7 +1140,7 @@ bool TypeChecker::visit(MemberAccess const& _memberAccess)
+ 			DataLocation::Storage,
+ 			exprType
+ 		);
+-		if (!storageType->members().membersByName(memberName).empty())
++		if (!storageType->members(m_scope).membersByName(memberName).empty())
+ 			fatalTypeError(
+ 				_memberAccess.location(),
+ 				"Member \"" + memberName + "\" is not available in " +
+@@ -1125,6 +1163,15 @@ bool TypeChecker::visit(MemberAccess const& _memberAccess)
+ 	auto& annotation = _memberAccess.annotation();
+ 	annotation.referencedDeclaration = possibleMembers.front().declaration;
+ 	annotation.type = possibleMembers.front().type;
++
++	if (auto funType = dynamic_cast<FunctionType const*>(annotation.type.get()))
++		if (funType->bound() && !exprType->isImplicitlyConvertibleTo(*funType->selfType()))
++			typeError(
++				_memberAccess.location(),
++				"Function \"" + memberName + "\" cannot be called on an object of type " +
++				exprType->toString() + " (expected " + funType->selfType()->toString() + ")"
++			);
++
+ 	if (exprType->category() == Type::Category::Struct)
+ 		annotation.isLValue = true;
+ 	else if (exprType->category() == Type::Category::Array)
+@@ -1229,7 +1276,7 @@ bool TypeChecker::visit(Identifier const& _identifier)
+ 
+ 			for (Declaration const* declaration: annotation.overloadedDeclarations)
+ 			{
+-				TypePointer function = declaration->type(_identifier.annotation().contractScope);
++				TypePointer function = declaration->type();
+ 				solAssert(!!function, "Requested type not present.");
+ 				auto const* functionType = dynamic_cast<FunctionType const*>(function.get());
+ 				if (functionType && functionType->canTakeArguments(*annotation.argumentTypes))
+@@ -1248,7 +1295,7 @@ bool TypeChecker::visit(Identifier const& _identifier)
+ 		"Referenced declaration is null after overload resolution."
+ 	);
+ 	annotation.isLValue = annotation.referencedDeclaration->isLValue();
+-	annotation.type = annotation.referencedDeclaration->type(_identifier.annotation().contractScope);
++	annotation.type = annotation.referencedDeclaration->type();
+ 	if (!annotation.type)
+ 		fatalTypeError(_identifier.location(), "Declaration referenced before type could be determined.");
+ 	return false;
+@@ -1282,12 +1329,18 @@ bool TypeChecker::contractDependenciesAreCyclic(
+ 	return false;
+ }
+ 
+-Declaration const& TypeChecker::dereference(Identifier const& _identifier)
++Declaration const& TypeChecker::dereference(Identifier const& _identifier) const
+ {
+ 	solAssert(!!_identifier.annotation().referencedDeclaration, "Declaration not stored.");
+ 	return *_identifier.annotation().referencedDeclaration;
+ }
+ 
++Declaration const& TypeChecker::dereference(UserDefinedTypeName const& _typeName) const
++{
++	solAssert(!!_typeName.annotation().referencedDeclaration, "Declaration not stored.");
++	return *_typeName.annotation().referencedDeclaration;
++}
++
+ void TypeChecker::expectType(Expression const& _expression, Type const& _expectedType)
+ {
+ 	_expression.accept(*this);
+diff --git a/libsolidity/analysis/TypeChecker.h b/libsolidity/analysis/TypeChecker.h
+index f163f47c..7829a23d 100644
+--- a/libsolidity/analysis/TypeChecker.h
++++ b/libsolidity/analysis/TypeChecker.h
+@@ -76,6 +76,7 @@ private:
+ 	void checkLibraryRequirements(ContractDefinition const& _contract);
+ 
+ 	virtual void endVisit(InheritanceSpecifier const& _inheritance) override;
++	virtual void endVisit(UsingForDirective const& _usingFor) override;
+ 	virtual bool visit(StructDefinition const& _struct) override;
+ 	virtual bool visit(FunctionDefinition const& _function) override;
+ 	virtual bool visit(VariableDeclaration const& _variable) override;
+@@ -107,7 +108,9 @@ private:
+ 	) const;
+ 
+ 	/// @returns the referenced declaration and throws on error.
+-	Declaration const& dereference(Identifier const& _identifier);
++	Declaration const& dereference(Identifier const& _identifier) const;
++	/// @returns the referenced declaration and throws on error.
++	Declaration const& dereference(UserDefinedTypeName const& _typeName) const;
+ 
+ 	/// Runs type checks on @a _expression to infer its type and then checks that it is implicitly
+ 	/// convertible to @a _expectedType.
+@@ -115,6 +118,8 @@ private:
+ 	/// Runs type checks on @a _expression to infer its type and then checks that it is an LValue.
+ 	void requireLValue(Expression const& _expression);
+ 
++	ContractDefinition const* m_scope = nullptr;
++
+ 	ErrorList& m_errors;
+ };
+ 
+diff --git a/libsolidity/ast/AST.cpp b/libsolidity/ast/AST.cpp
+index 41a4d182..6006d441 100644
+--- a/libsolidity/ast/AST.cpp
++++ b/libsolidity/ast/AST.cpp
+@@ -74,29 +74,29 @@ map<FixedHash<4>, FunctionTypePointer> ContractDefinition::interfaceFunctions()
+ 
+ FunctionDefinition const* ContractDefinition::constructor() const
+ {
+-	for (ASTPointer<FunctionDefinition> const& f: m_definedFunctions)
++	for (FunctionDefinition const* f: definedFunctions())
+ 		if (f->isConstructor())
+-			return f.get();
++			return f;
+ 	return nullptr;
+ }
+ 
+ FunctionDefinition const* ContractDefinition::fallbackFunction() const
+ {
+ 	for (ContractDefinition const* contract: annotation().linearizedBaseContracts)
+-		for (ASTPointer<FunctionDefinition> const& f: contract->definedFunctions())
++		for (FunctionDefinition const* f: contract->definedFunctions())
+ 			if (f->name().empty())
+-				return f.get();
++				return f;
+ 	return nullptr;
+ }
+ 
+-vector<ASTPointer<EventDefinition>> const& ContractDefinition::interfaceEvents() const
++vector<EventDefinition const*> const& ContractDefinition::interfaceEvents() const
+ {
+ 	if (!m_interfaceEvents)
+ 	{
+ 		set<string> eventsSeen;
+-		m_interfaceEvents.reset(new vector<ASTPointer<EventDefinition>>());
++		m_interfaceEvents.reset(new vector<EventDefinition const*>());
+ 		for (ContractDefinition const* contract: annotation().linearizedBaseContracts)
+-			for (ASTPointer<EventDefinition> const& e: contract->events())
++			for (EventDefinition const* e: contract->events())
+ 				if (eventsSeen.count(e->name()) == 0)
+ 				{
+ 					eventsSeen.insert(e->name());
+@@ -116,10 +116,10 @@ vector<pair<FixedHash<4>, FunctionTypePointer>> const& ContractDefinition::inter
+ 		for (ContractDefinition const* contract: annotation().linearizedBaseContracts)
+ 		{
+ 			vector<FunctionTypePointer> functions;
+-			for (ASTPointer<FunctionDefinition> const& f: contract->definedFunctions())
++			for (FunctionDefinition const* f: contract->definedFunctions())
+ 				if (f->isPartOfExternalInterface())
+ 					functions.push_back(make_shared<FunctionType>(*f, false));
+-			for (ASTPointer<VariableDeclaration> const& v: contract->stateVariables())
++			for (VariableDeclaration const* v: contract->stateVariables())
+ 				if (v->isPartOfExternalInterface())
+ 					functions.push_back(make_shared<FunctionType>(*v));
+ 			for (FunctionTypePointer const& fun: functions)
+@@ -176,21 +176,21 @@ vector<Declaration const*> const& ContractDefinition::inheritableMembers() const
+ 			}
+ 		};
+ 
+-		for (ASTPointer<FunctionDefinition> const& f: definedFunctions())
+-			addInheritableMember(f.get());
++		for (FunctionDefinition const* f: definedFunctions())
++			addInheritableMember(f);
+ 
+-		for (ASTPointer<VariableDeclaration> const& v: stateVariables())
+-			addInheritableMember(v.get());
++		for (VariableDeclaration const* v: stateVariables())
++			addInheritableMember(v);
+ 
+-		for (ASTPointer<StructDefinition> const& s: definedStructs())
+-			addInheritableMember(s.get());
++		for (StructDefinition const* s: definedStructs())
++			addInheritableMember(s);
+ 	}
+ 	return *m_inheritableMembers;
+ }
+ 
+-TypePointer ContractDefinition::type(ContractDefinition const* m_currentContract) const
++TypePointer ContractDefinition::type() const
+ {
+-	return make_shared<TypeType>(make_shared<ContractType>(*this), m_currentContract);
++	return make_shared<TypeType>(make_shared<ContractType>(*this));
+ }
+ 
+ ContractDefinitionAnnotation& ContractDefinition::annotation() const
+@@ -207,7 +207,7 @@ TypeNameAnnotation& TypeName::annotation() const
+ 	return static_cast<TypeNameAnnotation&>(*m_annotation);
+ }
+ 
+-TypePointer StructDefinition::type(ContractDefinition const*) const
++TypePointer StructDefinition::type() const
+ {
+ 	return make_shared<TypeType>(make_shared<StructType>(*this));
+ }
+@@ -219,14 +219,14 @@ TypeDeclarationAnnotation& StructDefinition::annotation() const
+ 	return static_cast<TypeDeclarationAnnotation&>(*m_annotation);
+ }
+ 
+-TypePointer EnumValue::type(ContractDefinition const*) const
++TypePointer EnumValue::type() const
+ {
+ 	auto parentDef = dynamic_cast<EnumDefinition const*>(scope());
+ 	solAssert(parentDef, "Enclosing Scope of EnumValue was not set");
+ 	return make_shared<EnumType>(*parentDef);
+ }
+ 
+-TypePointer EnumDefinition::type(ContractDefinition const*) const
++TypePointer EnumDefinition::type() const
+ {
+ 	return make_shared<TypeType>(make_shared<EnumType>(*this));
+ }
+@@ -238,7 +238,7 @@ TypeDeclarationAnnotation& EnumDefinition::annotation() const
+ 	return static_cast<TypeDeclarationAnnotation&>(*m_annotation);
+ }
+ 
+-TypePointer FunctionDefinition::type(ContractDefinition const*) const
++TypePointer FunctionDefinition::type() const
+ {
+ 	return make_shared<FunctionType>(*this);
+ }
+@@ -255,7 +255,7 @@ FunctionDefinitionAnnotation& FunctionDefinition::annotation() const
+ 	return static_cast<FunctionDefinitionAnnotation&>(*m_annotation);
+ }
+ 
+-TypePointer ModifierDefinition::type(ContractDefinition const*) const
++TypePointer ModifierDefinition::type() const
+ {
+ 	return make_shared<ModifierType>(*this);
+ }
+@@ -267,7 +267,7 @@ ModifierDefinitionAnnotation& ModifierDefinition::annotation() const
+ 	return static_cast<ModifierDefinitionAnnotation&>(*m_annotation);
+ }
+ 
+-TypePointer EventDefinition::type(ContractDefinition const*) const
++TypePointer EventDefinition::type() const
+ {
+ 	return make_shared<FunctionType>(*this);
+ }
+@@ -324,7 +324,7 @@ bool VariableDeclaration::canHaveAutoType() const
+ 	return (!!callable && !isCallableParameter());
+ }
+ 
+-TypePointer VariableDeclaration::type(ContractDefinition const*) const
++TypePointer VariableDeclaration::type() const
+ {
+ 	return annotation().type;
+ }
+diff --git a/libsolidity/ast/AST.h b/libsolidity/ast/AST.h
+index 69186cb7..1217d945 100644
+--- a/libsolidity/ast/AST.h
++++ b/libsolidity/ast/AST.h
+@@ -58,18 +58,22 @@ public:
+ 	virtual void accept(ASTVisitor& _visitor) = 0;
+ 	virtual void accept(ASTConstVisitor& _visitor) const = 0;
+ 	template <class T>
+-	static void listAccept(std::vector<ASTPointer<T>>& _list, ASTVisitor& _visitor)
++	static void listAccept(std::vector<T> const& _list, ASTVisitor& _visitor)
+ 	{
+-		for (ASTPointer<T>& element: _list)
++		for (T const& element: _list)
+ 			element->accept(_visitor);
+ 	}
+ 	template <class T>
+-	static void listAccept(std::vector<ASTPointer<T>> const& _list, ASTConstVisitor& _visitor)
++	static void listAccept(std::vector<T> const& _list, ASTConstVisitor& _visitor)
+ 	{
+-		for (ASTPointer<T> const& element: _list)
++		for (T const& element: _list)
+ 			element->accept(_visitor);
+ 	}
+ 
++	/// @returns a copy of the vector containing only the nodes which derive from T.
++	template <class _T>
++	static std::vector<_T const*> filteredNodes(std::vector<ASTPointer<ASTNode>> const& _nodes);
++
+ 	/// Returns the source code location of this node.
+ 	SourceLocation const& location() const { return m_location; }
+ 
+@@ -95,6 +99,16 @@ private:
+ 	SourceLocation m_location;
+ };
+ 
++template <class _T>
++std::vector<_T const*> ASTNode::filteredNodes(std::vector<ASTPointer<ASTNode>> const& _nodes)
++{
++	std::vector<_T const*> ret;
++	for (auto const& n: _nodes)
++		if (auto const* nt = dynamic_cast<_T const*>(n.get()))
++			ret.push_back(nt);
++	return ret;
++}
++
+ /**
+  * Source unit containing import directives and contract definitions.
+  */
+@@ -168,7 +182,7 @@ public:
+ 	/// The current contract has to be given since this context can change the type, especially of
+ 	/// contract types.
+ 	/// This can only be called once types of variable declarations have already been resolved.
+-	virtual TypePointer type(ContractDefinition const* m_currentContract = nullptr) const = 0;
++	virtual TypePointer type() const = 0;
+ 
+ protected:
+ 	virtual Visibility defaultVisibility() const { return Visibility::Public; }
+@@ -238,23 +252,13 @@ public:
+ 		ASTPointer<ASTString> const& _name,
+ 		ASTPointer<ASTString> const& _documentation,
+ 		std::vector<ASTPointer<InheritanceSpecifier>> const& _baseContracts,
+-		std::vector<ASTPointer<StructDefinition>> const& _definedStructs,
+-		std::vector<ASTPointer<EnumDefinition>> const& _definedEnums,
+-		std::vector<ASTPointer<VariableDeclaration>> const& _stateVariables,
+-		std::vector<ASTPointer<FunctionDefinition>> const& _definedFunctions,
+-		std::vector<ASTPointer<ModifierDefinition>> const& _functionModifiers,
+-		std::vector<ASTPointer<EventDefinition>> const& _events,
++		std::vector<ASTPointer<ASTNode>> const& _subNodes,
+ 		bool _isLibrary
+ 	):
+ 		Declaration(_location, _name),
+ 		Documented(_documentation),
+ 		m_baseContracts(_baseContracts),
+-		m_definedStructs(_definedStructs),
+-		m_definedEnums(_definedEnums),
+-		m_stateVariables(_stateVariables),
+-		m_definedFunctions(_definedFunctions),
+-		m_functionModifiers(_functionModifiers),
+-		m_events(_events),
++		m_subNodes(_subNodes),
+ 		m_isLibrary(_isLibrary)
+ 	{}
+ 
+@@ -262,13 +266,15 @@ public:
+ 	virtual void accept(ASTConstVisitor& _visitor) const override;
+ 
+ 	std::vector<ASTPointer<InheritanceSpecifier>> const& baseContracts() const { return m_baseContracts; }
+-	std::vector<ASTPointer<StructDefinition>> const& definedStructs() const { return m_definedStructs; }
+-	std::vector<ASTPointer<EnumDefinition>> const& definedEnums() const { return m_definedEnums; }
+-	std::vector<ASTPointer<VariableDeclaration>> const& stateVariables() const { return m_stateVariables; }
+-	std::vector<ASTPointer<ModifierDefinition>> const& functionModifiers() const { return m_functionModifiers; }
+-	std::vector<ASTPointer<FunctionDefinition>> const& definedFunctions() const { return m_definedFunctions; }
+-	std::vector<ASTPointer<EventDefinition>> const& events() const { return m_events; }
+-	std::vector<ASTPointer<EventDefinition>> const& interfaceEvents() const;
++	std::vector<ASTPointer<ASTNode>> const& subNodes() const { return m_subNodes; }
++	std::vector<UsingForDirective const*> usingForDirectives() const { return filteredNodes<UsingForDirective>(m_subNodes); }
++	std::vector<StructDefinition const*> definedStructs() const { return filteredNodes<StructDefinition>(m_subNodes); }
++	std::vector<EnumDefinition const*> definedEnums() const { return filteredNodes<EnumDefinition>(m_subNodes); }
++	std::vector<VariableDeclaration const*> stateVariables() const { return filteredNodes<VariableDeclaration>(m_subNodes); }
++	std::vector<ModifierDefinition const*> functionModifiers() const { return filteredNodes<ModifierDefinition>(m_subNodes); }
++	std::vector<FunctionDefinition const*> definedFunctions() const { return filteredNodes<FunctionDefinition>(m_subNodes); }
++	std::vector<EventDefinition const*> events() const { return filteredNodes<EventDefinition>(m_subNodes); }
++	std::vector<EventDefinition const*> const& interfaceEvents() const;
+ 	bool isLibrary() const { return m_isLibrary; }
+ 
+ 	/// @returns a map of canonical function signatures to FunctionDefinitions
+@@ -290,18 +296,13 @@ public:
+ 	std::string const& devDocumentation() const;
+ 	void setDevDocumentation(std::string const& _devDocumentation);
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual ContractDefinitionAnnotation& annotation() const override;
+ 
+ private:
+ 	std::vector<ASTPointer<InheritanceSpecifier>> m_baseContracts;
+-	std::vector<ASTPointer<StructDefinition>> m_definedStructs;
+-	std::vector<ASTPointer<EnumDefinition>> m_definedEnums;
+-	std::vector<ASTPointer<VariableDeclaration>> m_stateVariables;
+-	std::vector<ASTPointer<FunctionDefinition>> m_definedFunctions;
+-	std::vector<ASTPointer<ModifierDefinition>> m_functionModifiers;
+-	std::vector<ASTPointer<EventDefinition>> m_events;
++	std::vector<ASTPointer<ASTNode>> m_subNodes;
+ 	bool m_isLibrary;
+ 
+ 	// parsed Natspec documentation of the contract.
+@@ -310,7 +311,7 @@ private:
+ 
+ 	std::vector<ContractDefinition const*> m_linearizedBaseContracts;
+ 	mutable std::unique_ptr<std::vector<std::pair<FixedHash<4>, FunctionTypePointer>>> m_interfaceFunctionList;
+-	mutable std::unique_ptr<std::vector<ASTPointer<EventDefinition>>> m_interfaceEvents;
++	mutable std::unique_ptr<std::vector<EventDefinition const*>> m_interfaceEvents;
+ 	mutable std::unique_ptr<std::vector<Declaration const*>> m_inheritableMembers;
+ };
+ 
+@@ -335,6 +336,33 @@ private:
+ 	std::vector<ASTPointer<Expression>> m_arguments;
+ };
+ 
++/**
++ * `using LibraryName for uint` will attach all functions from the library LibraryName
++ * to `uint` if the first parameter matches the type. `using LibraryName for *` attaches
++ * the function to any matching type.
++ */
++class UsingForDirective: public ASTNode
++{
++public:
++	UsingForDirective(
++		SourceLocation const& _location,
++		ASTPointer<Identifier> const& _libraryName,
++		ASTPointer<TypeName> const& _typeName
++	):
++		ASTNode(_location), m_libraryName(_libraryName), m_typeName(_typeName) {}
++
++	virtual void accept(ASTVisitor& _visitor) override;
++	virtual void accept(ASTConstVisitor& _visitor) const override;
++
++	Identifier const& libraryName() const { return *m_libraryName; }
++	/// @returns the type name the library is attached to, null for `*`.
++	TypeName const* typeName() const { return m_typeName.get(); }
++
++private:
++	ASTPointer<Identifier> m_libraryName;
++	ASTPointer<TypeName> m_typeName;
++};
++
+ class StructDefinition: public Declaration
+ {
+ public:
+@@ -350,7 +378,7 @@ public:
+ 
+ 	std::vector<ASTPointer<VariableDeclaration>> const& members() const { return m_members; }
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual TypeDeclarationAnnotation& annotation() const override;
+ 
+@@ -372,7 +400,7 @@ public:
+ 
+ 	std::vector<ASTPointer<EnumValue>> const& members() const { return m_members; }
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual TypeDeclarationAnnotation& annotation() const override;
+ 
+@@ -392,7 +420,7 @@ public:
+ 	virtual void accept(ASTVisitor& _visitor) override;
+ 	virtual void accept(ASTConstVisitor& _visitor) const override;
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ };
+ 
+ /**
+@@ -490,7 +518,7 @@ public:
+ 	/// arguments separated by commas all enclosed in parentheses without any spaces.
+ 	std::string externalSignature() const;
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual FunctionDefinitionAnnotation& annotation() const override;
+ 
+@@ -551,7 +579,7 @@ public:
+ 	bool isConstant() const { return m_isConstant; }
+ 	Location referenceLocation() const { return m_location; }
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual VariableDeclarationAnnotation& annotation() const override;
+ 
+@@ -593,7 +621,7 @@ public:
+ 
+ 	Block const& body() const { return *m_body; }
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual ModifierDefinitionAnnotation& annotation() const override;
+ 
+@@ -649,7 +677,7 @@ public:
+ 
+ 	bool isAnonymous() const { return m_anonymous; }
+ 
+-	virtual TypePointer type(ContractDefinition const* m_currentContract) const override;
++	virtual TypePointer type() const override;
+ 
+ 	virtual EventDefinitionAnnotation& annotation() const override;
+ 
+@@ -675,7 +703,7 @@ public:
+ 		BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment("MagicVariableDeclaration used inside real AST."));
+ 	}
+ 
+-	virtual TypePointer type(ContractDefinition const*) const override { return m_type; }
++	virtual TypePointer type() const override { return m_type; }
+ 
+ private:
+ 	std::shared_ptr<Type const> m_type;
+@@ -1216,23 +1244,24 @@ private:
+ };
+ 
+ /**
+- * Expression that creates a new contract, e.g. the "new SomeContract" part in "new SomeContract(1, 2)".
++ * Expression that creates a new contract or memory-array,
++ * e.g. the "new SomeContract" part in "new SomeContract(1, 2)".
+  */
+ class NewExpression: public Expression
+ {
+ public:
+ 	NewExpression(
+ 		SourceLocation const& _location,
+-		ASTPointer<Identifier> const& _contractName
++		ASTPointer<TypeName> const& _typeName
+ 	):
+-		Expression(_location), m_contractName(_contractName) {}
++		Expression(_location), m_typeName(_typeName) {}
+ 	virtual void accept(ASTVisitor& _visitor) override;
+ 	virtual void accept(ASTConstVisitor& _visitor) const override;
+ 
+-	Identifier const& contractName() const { return *m_contractName; }
++	TypeName const& typeName() const { return *m_typeName; }
+ 
+ private:
+-	ASTPointer<Identifier> m_contractName;
++	ASTPointer<TypeName> m_typeName;
+ };
+ 
+ /**
+diff --git a/libsolidity/ast/ASTAnnotations.h b/libsolidity/ast/ASTAnnotations.h
+index bb59ceae..4e0187cf 100644
+--- a/libsolidity/ast/ASTAnnotations.h
++++ b/libsolidity/ast/ASTAnnotations.h
+@@ -111,6 +111,9 @@ struct UserDefinedTypeNameAnnotation: TypeNameAnnotation
+ {
+ 	/// Referenced declaration, set during reference resolution stage.
+ 	Declaration const* referencedDeclaration = nullptr;
++	/// Stores a reference to the current contract.
++	/// This is needed because types of base contracts change depending on the context.
++	ContractDefinition const* contractScope = nullptr;
+ };
+ 
+ struct VariableDeclarationStatementAnnotation: StatementAnnotation
+@@ -135,9 +138,6 @@ struct ExpressionAnnotation: ASTAnnotation
+ 
+ struct IdentifierAnnotation: ExpressionAnnotation
+ {
+-	/// Stores a reference to the current contract.
+-	/// This is needed because types of base contracts change depending on the context.
+-	ContractDefinition const* contractScope = nullptr;
+ 	/// Referenced declaration, set at latest during overload resolution stage.
+ 	Declaration const* referencedDeclaration = nullptr;
+ 	/// List of possible declarations it could refer to.
+diff --git a/libsolidity/ast/ASTForward.h b/libsolidity/ast/ASTForward.h
+index 02dd054a..6aaa77ce 100644
+--- a/libsolidity/ast/ASTForward.h
++++ b/libsolidity/ast/ASTForward.h
+@@ -39,6 +39,7 @@ class ImportDirective;
+ class Declaration;
+ class ContractDefinition;
+ class InheritanceSpecifier;
++class UsingForDirective;
+ class StructDefinition;
+ class EnumDefinition;
+ class EnumValue;
+diff --git a/libsolidity/ast/ASTVisitor.h b/libsolidity/ast/ASTVisitor.h
+index 14c09fb4..f04d9682 100644
+--- a/libsolidity/ast/ASTVisitor.h
++++ b/libsolidity/ast/ASTVisitor.h
+@@ -47,6 +47,7 @@ public:
+ 	virtual bool visit(ImportDirective& _node) { return visitNode(_node); }
+ 	virtual bool visit(ContractDefinition& _node) { return visitNode(_node); }
+ 	virtual bool visit(InheritanceSpecifier& _node) { return visitNode(_node); }
++	virtual bool visit(UsingForDirective& _node) { return visitNode(_node); }
+ 	virtual bool visit(StructDefinition& _node) { return visitNode(_node); }
+ 	virtual bool visit(EnumDefinition& _node) { return visitNode(_node); }
+ 	virtual bool visit(EnumValue& _node) { return visitNode(_node); }
+@@ -88,6 +89,7 @@ public:
+ 	virtual void endVisit(ImportDirective& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(ContractDefinition& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(InheritanceSpecifier& _node) { endVisitNode(_node); }
++	virtual void endVisit(UsingForDirective& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(StructDefinition& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(EnumDefinition& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(EnumValue& _node) { endVisitNode(_node); }
+@@ -142,6 +144,7 @@ public:
+ 	virtual bool visit(ContractDefinition const& _node) { return visitNode(_node); }
+ 	virtual bool visit(InheritanceSpecifier const& _node) { return visitNode(_node); }
+ 	virtual bool visit(StructDefinition const& _node) { return visitNode(_node); }
++	virtual bool visit(UsingForDirective const& _node) { return visitNode(_node); }
+ 	virtual bool visit(EnumDefinition const& _node) { return visitNode(_node); }
+ 	virtual bool visit(EnumValue const& _node) { return visitNode(_node); }
+ 	virtual bool visit(ParameterList const& _node) { return visitNode(_node); }
+@@ -182,6 +185,7 @@ public:
+ 	virtual void endVisit(ImportDirective const& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(ContractDefinition const& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(InheritanceSpecifier const& _node) { endVisitNode(_node); }
++	virtual void endVisit(UsingForDirective const& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(StructDefinition const& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(EnumDefinition const& _node) { endVisitNode(_node); }
+ 	virtual void endVisit(EnumValue const& _node) { endVisitNode(_node); }
+diff --git a/libsolidity/ast/AST_accept.h b/libsolidity/ast/AST_accept.h
+index 12a26ea7..61370c55 100644
+--- a/libsolidity/ast/AST_accept.h
++++ b/libsolidity/ast/AST_accept.h
+@@ -62,12 +62,7 @@ void ContractDefinition::accept(ASTVisitor& _visitor)
+ 	if (_visitor.visit(*this))
+ 	{
+ 		listAccept(m_baseContracts, _visitor);
+-		listAccept(m_definedStructs, _visitor);
+-		listAccept(m_definedEnums, _visitor);
+-		listAccept(m_stateVariables, _visitor);
+-		listAccept(m_events, _visitor);
+-		listAccept(m_functionModifiers, _visitor);
+-		listAccept(m_definedFunctions, _visitor);
++		listAccept(m_subNodes, _visitor);
+ 	}
+ 	_visitor.endVisit(*this);
+ }
+@@ -77,12 +72,7 @@ void ContractDefinition::accept(ASTConstVisitor& _visitor) const
+ 	if (_visitor.visit(*this))
+ 	{
+ 		listAccept(m_baseContracts, _visitor);
+-		listAccept(m_definedStructs, _visitor);
+-		listAccept(m_definedEnums, _visitor);
+-		listAccept(m_stateVariables, _visitor);
+-		listAccept(m_events, _visitor);
+-		listAccept(m_functionModifiers, _visitor);
+-		listAccept(m_definedFunctions, _visitor);
++		listAccept(m_subNodes, _visitor);
+ 	}
+ 	_visitor.endVisit(*this);
+ }
+@@ -133,6 +123,28 @@ void EnumValue::accept(ASTConstVisitor& _visitor) const
+ 	_visitor.endVisit(*this);
+ }
+ 
++void UsingForDirective::accept(ASTVisitor& _visitor)
++{
++	if (_visitor.visit(*this))
++	{
++		m_libraryName->accept(_visitor);
++		if (m_typeName)
++			m_typeName->accept(_visitor);
++	}
++	_visitor.endVisit(*this);
++}
++
++void UsingForDirective::accept(ASTConstVisitor& _visitor) const
++{
++	if (_visitor.visit(*this))
++	{
++		m_libraryName->accept(_visitor);
++		if (m_typeName)
++			m_typeName->accept(_visitor);
++	}
++	_visitor.endVisit(*this);
++}
++
+ void StructDefinition::accept(ASTVisitor& _visitor)
+ {
+ 	if (_visitor.visit(*this))
+@@ -634,14 +646,14 @@ void FunctionCall::accept(ASTConstVisitor& _visitor) const
+ void NewExpression::accept(ASTVisitor& _visitor)
+ {
+ 	if (_visitor.visit(*this))
+-		m_contractName->accept(_visitor);
++		m_typeName->accept(_visitor);
+ 	_visitor.endVisit(*this);
+ }
+ 
+ void NewExpression::accept(ASTConstVisitor& _visitor) const
+ {
+ 	if (_visitor.visit(*this))
+-		m_contractName->accept(_visitor);
++		m_typeName->accept(_visitor);
+ 	_visitor.endVisit(*this);
+ }
+ 
+diff --git a/libsolidity/ast/Types.cpp b/libsolidity/ast/Types.cpp
+index 0253e843..2dc7fb84 100644
+--- a/libsolidity/ast/Types.cpp
++++ b/libsolidity/ast/Types.cpp
+@@ -86,6 +86,11 @@ MemberList& MemberList::operator=(MemberList&& _other)
+ 	return *this;
+ }
+ 
++void MemberList::combine(MemberList const & _other)
++{
++	m_memberTypes += _other.m_memberTypes;
++}
++
+ std::pair<u256, unsigned> const* MemberList::memberStorageOffset(string const& _name) const
+ {
+ 	if (!m_storageOffsets)
+@@ -185,7 +190,52 @@ TypePointer Type::commonType(TypePointer const& _a, TypePointer const& _b)
+ 		return TypePointer();
+ }
+ 
+-const MemberList Type::EmptyMemberList;
++MemberList const& Type::members(ContractDefinition const* _currentScope) const
++{
++	if (!m_members[_currentScope])
++	{
++		MemberList::MemberMap members = nativeMembers(_currentScope);
++		if (_currentScope)
++			members +=  boundFunctions(*this, *_currentScope);
++		m_members[_currentScope] = unique_ptr<MemberList>(new MemberList(move(members)));
++	}
++	return *m_members[_currentScope];
++}
++
++MemberList::MemberMap Type::boundFunctions(Type const& _type, ContractDefinition const& _scope)
++{
++	// Normalise data location of type.
++	TypePointer type = ReferenceType::copyForLocationIfReference(DataLocation::Storage, _type.shared_from_this());
++	set<Declaration const*> seenFunctions;
++	MemberList::MemberMap members;
++	for (ContractDefinition const* contract: _scope.annotation().linearizedBaseContracts)
++		for (UsingForDirective const* ufd: contract->usingForDirectives())
++		{
++			if (ufd->typeName() && *type != *ReferenceType::copyForLocationIfReference(
++				DataLocation::Storage,
++				ufd->typeName()->annotation().type
++			))
++				continue;
++			auto const& library = dynamic_cast<ContractDefinition const&>(
++				*ufd->libraryName().annotation().referencedDeclaration
++			);
++			for (auto const& it: library.interfaceFunctions())
++			{
++				FunctionType const& funType = *it.second;
++				solAssert(funType.hasDeclaration(), "Tried to bind function without declaration.");
++				if (seenFunctions.count(&funType.declaration()))
++					continue;
++				seenFunctions.insert(&funType.declaration());
++				if (auto fun = funType.asMemberFunction(true, true))
++					members.push_back(MemberList::Member(
++						funType.declaration().name(),
++						fun,
++						&funType.declaration()
++					));
++			}
++		}
++	return members;
++}
+ 
+ IntegerType::IntegerType(int _bits, IntegerType::Modifier _modifier):
+ 	m_bits(_bits), m_modifier(_modifier)
+@@ -273,12 +323,18 @@ TypePointer IntegerType::binaryOperatorResult(Token::Value _operator, TypePointe
+ 	return commonType;
+ }
+ 
+-const MemberList IntegerType::AddressMemberList({
+-	{"balance", make_shared<IntegerType >(256)},
+-	{"call", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::Bare, true)},
+-	{"callcode", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::BareCallCode, true)},
+-	{"send", make_shared<FunctionType>(strings{"uint"}, strings{"bool"}, FunctionType::Location::Send)}
+-});
++MemberList::MemberMap IntegerType::nativeMembers(ContractDefinition const*) const
++{
++	if (isAddress())
++		return {
++			{"balance", make_shared<IntegerType >(256)},
++			{"call", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::Bare, true)},
++			{"callcode", make_shared<FunctionType>(strings(), strings{"bool"}, FunctionType::Location::BareCallCode, true)},
++			{"send", make_shared<FunctionType>(strings{"uint"}, strings{"bool"}, FunctionType::Location::Send)}
++		};
++	else
++		return MemberList::MemberMap();
++}
+ 
+ bool IntegerConstantType::isValidLiteral(const Literal& _literal)
+ {
+@@ -781,7 +837,7 @@ bool ArrayType::operator==(Type const& _other) const
+ unsigned ArrayType::calldataEncodedSize(bool _padded) const
+ {
+ 	if (isDynamicallySized())
+-		return 0;
++		return 32;
+ 	bigint size = bigint(length()) * (isByteArray() ? 1 : baseType()->calldataEncodedSize(_padded));
+ 	size = ((size + 31) / 32) * 32;
+ 	solAssert(size <= numeric_limits<unsigned>::max(), "Array size does not fit unsigned.");
+@@ -858,26 +914,22 @@ string ArrayType::canonicalName(bool _addDataLocation) const
+ 	return ret;
+ }
+ 
+-MemberList const& ArrayType::members() const
++MemberList::MemberMap ArrayType::nativeMembers(ContractDefinition const*) const
+ {
+-	if (!m_members)
++	MemberList::MemberMap members;
++	if (!isString())
+ 	{
+-		MemberList::MemberMap members;
+-		if (!isString())
+-		{
+-			members.push_back({"length", make_shared<IntegerType>(256)});
+-			if (isDynamicallySized() && location() == DataLocation::Storage)
+-				members.push_back({"push", make_shared<FunctionType>(
+-					TypePointers{baseType()},
+-					TypePointers{make_shared<IntegerType>(256)},
+-					strings{string()},
+-					strings{string()},
+-					isByteArray() ? FunctionType::Location::ByteArrayPush : FunctionType::Location::ArrayPush
+-				)});
+-		}
+-		m_members.reset(new MemberList(members));
++		members.push_back({"length", make_shared<IntegerType>(256)});
++		if (isDynamicallySized() && location() == DataLocation::Storage)
++			members.push_back({"push", make_shared<FunctionType>(
++				TypePointers{baseType()},
++				TypePointers{make_shared<IntegerType>(256)},
++				strings{string()},
++				strings{string()},
++				isByteArray() ? FunctionType::Location::ByteArrayPush : FunctionType::Location::ArrayPush
++			)});
+ 	}
+-	return *m_members;
++	return members;
+ }
+ 
+ TypePointer ArrayType::encodingType() const
+@@ -956,55 +1008,47 @@ string ContractType::canonicalName(bool) const
+ 	return m_contract.annotation().canonicalName;
+ }
+ 
+-MemberList const& ContractType::members() const
++MemberList::MemberMap ContractType::nativeMembers(ContractDefinition const*) const
+ {
+-	// We need to lazy-initialize it because of recursive references.
+-	if (!m_members)
++	// All address members and all interface functions
++	MemberList::MemberMap members(IntegerType(120, IntegerType::Modifier::Address).nativeMembers(nullptr));
++	if (m_super)
+ 	{
+-		// All address members and all interface functions
+-		MemberList::MemberMap members(
+-			IntegerType::AddressMemberList.begin(),
+-			IntegerType::AddressMemberList.end()
+-		);
+-		if (m_super)
+-		{
+-			// add the most derived of all functions which are visible in derived contracts
+-			for (ContractDefinition const* base: m_contract.annotation().linearizedBaseContracts)
+-				for (ASTPointer<FunctionDefinition> const& function: base->definedFunctions())
++		// add the most derived of all functions which are visible in derived contracts
++		for (ContractDefinition const* base: m_contract.annotation().linearizedBaseContracts)
++			for (FunctionDefinition const* function: base->definedFunctions())
++			{
++				if (!function->isVisibleInDerivedContracts())
++					continue;
++				auto functionType = make_shared<FunctionType>(*function, true);
++				bool functionWithEqualArgumentsFound = false;
++				for (auto const& member: members)
+ 				{
+-					if (!function->isVisibleInDerivedContracts())
++					if (member.name != function->name())
++						continue;
++					auto memberType = dynamic_cast<FunctionType const*>(member.type.get());
++					solAssert(!!memberType, "Override changes type.");
++					if (!memberType->hasEqualArgumentTypes(*functionType))
+ 						continue;
+-					auto functionType = make_shared<FunctionType>(*function, true);
+-					bool functionWithEqualArgumentsFound = false;
+-					for (auto const& member: members)
+-					{
+-						if (member.name != function->name())
+-							continue;
+-						auto memberType = dynamic_cast<FunctionType const*>(member.type.get());
+-						solAssert(!!memberType, "Override changes type.");
+-						if (!memberType->hasEqualArgumentTypes(*functionType))
+-							continue;
+-						functionWithEqualArgumentsFound = true;
+-						break;
+-					}
+-					if (!functionWithEqualArgumentsFound)
+-						members.push_back(MemberList::Member(
+-							function->name(),
+-							functionType,
+-							function.get()
+-						));
++					functionWithEqualArgumentsFound = true;
++					break;
+ 				}
+-		}
+-		else
+-			for (auto const& it: m_contract.interfaceFunctions())
+-				members.push_back(MemberList::Member(
+-					it.second->declaration().name(),
+-					it.second->asMemberFunction(m_contract.isLibrary()),
+-					&it.second->declaration()
+-				));
+-		m_members.reset(new MemberList(members));
++				if (!functionWithEqualArgumentsFound)
++					members.push_back(MemberList::Member(
++						function->name(),
++						functionType,
++						function
++					));
++			}
+ 	}
+-	return *m_members;
++	else
++		for (auto const& it: m_contract.interfaceFunctions())
++			members.push_back(MemberList::Member(
++				it.second->declaration().name(),
++				it.second->asMemberFunction(m_contract.isLibrary()),
++				&it.second->declaration()
++			));
++	return members;
+ }
+ 
+ shared_ptr<FunctionType const> const& ContractType::constructorType() const
+@@ -1024,9 +1068,9 @@ vector<tuple<VariableDeclaration const*, u256, unsigned>> ContractType::stateVar
+ {
+ 	vector<VariableDeclaration const*> variables;
+ 	for (ContractDefinition const* contract: boost::adaptors::reverse(m_contract.annotation().linearizedBaseContracts))
+-		for (ASTPointer<VariableDeclaration> const& variable: contract->stateVariables())
++		for (VariableDeclaration const* variable: contract->stateVariables())
+ 			if (!variable->isConstant())
+-				variables.push_back(variable.get());
++				variables.push_back(variable);
+ 	TypePointers types;
+ 	for (auto variable: variables)
+ 		types.push_back(variable->annotation().type);
+@@ -1064,7 +1108,7 @@ bool StructType::operator==(Type const& _other) const
+ unsigned StructType::calldataEncodedSize(bool _padded) const
+ {
+ 	unsigned size = 0;
+-	for (auto const& member: members())
++	for (auto const& member: members(nullptr))
+ 		if (!member.type->canLiveOutsideStorage())
+ 			return 0;
+ 		else
+@@ -1080,7 +1124,7 @@ unsigned StructType::calldataEncodedSize(bool _padded) const
+ u256 StructType::memorySize() const
+ {
+ 	u256 size;
+-	for (auto const& member: members())
++	for (auto const& member: members(nullptr))
+ 		if (member.type->canLiveOutsideStorage())
+ 			size += member.type->memoryHeadSize();
+ 	return size;
+@@ -1088,7 +1132,7 @@ u256 StructType::memorySize() const
+ 
+ u256 StructType::storageSize() const
+ {
+-	return max<u256>(1, members().storageSize());
++	return max<u256>(1, members(nullptr).storageSize());
+ }
+ 
+ string StructType::toString(bool _short) const
+@@ -1099,27 +1143,22 @@ string StructType::toString(bool _short) const
+ 	return ret;
+ }
+ 
+-MemberList const& StructType::members() const
++MemberList::MemberMap StructType::nativeMembers(ContractDefinition const*) const
+ {
+-	// We need to lazy-initialize it because of recursive references.
+-	if (!m_members)
++	MemberList::MemberMap members;
++	for (ASTPointer<VariableDeclaration> const& variable: m_struct.members())
+ 	{
+-		MemberList::MemberMap members;
+-		for (ASTPointer<VariableDeclaration> const& variable: m_struct.members())
+-		{
+-			TypePointer type = variable->annotation().type;
+-			// Skip all mapping members if we are not in storage.
+-			if (location() != DataLocation::Storage && !type->canLiveOutsideStorage())
+-				continue;
+-			members.push_back(MemberList::Member(
+-				variable->name(),
+-				copyForLocationIfReference(type),
+-				variable.get())
+-			);
+-		}
+-		m_members.reset(new MemberList(members));
++		TypePointer type = variable->annotation().type;
++		// Skip all mapping members if we are not in storage.
++		if (location() != DataLocation::Storage && !type->canLiveOutsideStorage())
++			continue;
++		members.push_back(MemberList::Member(
++			variable->name(),
++			copyForLocationIfReference(type),
++			variable.get())
++		);
+ 	}
+-	return *m_members;
++	return members;
+ }
+ 
+ TypePointer StructType::interfaceType(bool _inLibrary) const
+@@ -1149,7 +1188,7 @@ FunctionTypePointer StructType::constructorType() const
+ {
+ 	TypePointers paramTypes;
+ 	strings paramNames;
+-	for (auto const& member: members())
++	for (auto const& member: members(nullptr))
+ 	{
+ 		if (!member.type->canLiveOutsideStorage())
+ 			continue;
+@@ -1167,7 +1206,7 @@ FunctionTypePointer StructType::constructorType() const
+ 
+ pair<u256, unsigned> const& StructType::storageOffsetsOfMember(string const& _name) const
+ {
+-	auto const* offsets = members().memberStorageOffset(_name);
++	auto const* offsets = members(nullptr).memberStorageOffset(_name);
+ 	solAssert(offsets, "Storage offset of non-existing member requested.");
+ 	return *offsets;
+ }
+@@ -1175,7 +1214,7 @@ pair<u256, unsigned> const& StructType::storageOffsetsOfMember(string const& _na
+ u256 StructType::memoryOffsetOfMember(string const& _name) const
+ {
+ 	u256 offset;
+-	for (auto const& member: members())
++	for (auto const& member: members(nullptr))
+ 		if (member.name == _name)
+ 			return offset;
+ 		else
+@@ -1395,7 +1434,7 @@ FunctionType::FunctionType(VariableDeclaration const& _varDecl):
+ 	vector<string> retParamNames;
+ 	if (auto structType = dynamic_cast<StructType const*>(returnType.get()))
+ 	{
+-		for (auto const& member: structType->members())
++		for (auto const& member: structType->members(nullptr))
+ 			if (member.type->category() != Category::Mapping)
+ 			{
+ 				if (auto arrayType = dynamic_cast<ArrayType const*>(member.type.get()))
+@@ -1436,6 +1475,20 @@ FunctionType::FunctionType(const EventDefinition& _event):
+ 	swap(paramNames, m_parameterNames);
+ }
+ 
++std::vector<string> FunctionType::parameterNames() const
++{
++	if (!bound())
++		return m_parameterNames;
++	return vector<string>(m_parameterNames.cbegin() + 1, m_parameterNames.cend());
++}
++
++TypePointers FunctionType::parameterTypes() const
++{
++	if (!bound())
++		return m_parameterTypes;
++	return TypePointers(m_parameterTypes.cbegin() + 1, m_parameterTypes.cend());
++}
++
+ bool FunctionType::operator==(Type const& _other) const
+ {
+ 	if (_other.category() != category())
+@@ -1461,6 +1514,10 @@ bool FunctionType::operator==(Type const& _other) const
+ 	//@todo this is ugly, but cannot be prevented right now
+ 	if (m_gasSet != other.m_gasSet || m_valueSet != other.m_valueSet)
+ 		return false;
++	if (bound() != other.bound())
++		return false;
++	if (bound() && *selfType() != *other.selfType())
++		return false;
+ 	return true;
+ }
+ 
+@@ -1504,6 +1561,8 @@ unsigned FunctionType::sizeOnStack() const
+ 		size++;
+ 	if (m_valueSet)
+ 		size++;
++	if (bound())
++		size += m_parameterTypes.front()->sizeOnStack();
+ 	return size;
+ }
+ 
+@@ -1533,7 +1592,7 @@ FunctionTypePointer FunctionType::interfaceFunctionType() const
+ 	return make_shared<FunctionType>(paramTypes, retParamTypes, m_parameterNames, m_returnParameterNames, m_location, m_arbitraryParameters);
+ }
+ 
+-MemberList const& FunctionType::members() const
++MemberList::MemberMap FunctionType::nativeMembers(ContractDefinition const*) const
+ {
+ 	switch (m_location)
+ 	{
+@@ -1544,52 +1603,53 @@ MemberList const& FunctionType::members() const
+ 	case Location::RIPEMD160:
+ 	case Location::Bare:
+ 	case Location::BareCallCode:
+-		if (!m_members)
+-		{
+-			MemberList::MemberMap members{
+-				{
+-					"value",
++	{
++		MemberList::MemberMap members{
++			{
++				"value",
++				make_shared<FunctionType>(
++					parseElementaryTypeVector({"uint"}),
++					TypePointers{copyAndSetGasOrValue(false, true)},
++					strings(),
++					strings(),
++					Location::SetValue,
++					false,
++					nullptr,
++					m_gasSet,
++					m_valueSet
++				)
++			}
++		};
++		if (m_location != Location::Creation)
++			members.push_back(
++				MemberList::Member(
++					"gas",
+ 					make_shared<FunctionType>(
+ 						parseElementaryTypeVector({"uint"}),
+-						TypePointers{copyAndSetGasOrValue(false, true)},
++						TypePointers{copyAndSetGasOrValue(true, false)},
+ 						strings(),
+ 						strings(),
+-						Location::SetValue,
++						Location::SetGas,
+ 						false,
+ 						nullptr,
+ 						m_gasSet,
+ 						m_valueSet
+ 					)
+-				}
+-			};
+-			if (m_location != Location::Creation)
+-				members.push_back(
+-					MemberList::Member(
+-						"gas",
+-						make_shared<FunctionType>(
+-							parseElementaryTypeVector({"uint"}),
+-							TypePointers{copyAndSetGasOrValue(true, false)},
+-							strings(),
+-							strings(),
+-							Location::SetGas,
+-							false,
+-							nullptr,
+-							m_gasSet,
+-							m_valueSet
+-						)
+-					)
+-				);
+-			m_members.reset(new MemberList(members));
+-		}
+-		return *m_members;
++				)
++			);
++		return members;
++	}
+ 	default:
+-		return EmptyMemberList;
++		return MemberList::MemberMap();
+ 	}
+ }
+ 
+-bool FunctionType::canTakeArguments(TypePointers const& _argumentTypes) const
++bool FunctionType::canTakeArguments(TypePointers const& _argumentTypes, TypePointer const& _selfType) const
+ {
+-	TypePointers const& paramTypes = parameterTypes();
++	solAssert(!bound() || _selfType, "");
++	if (bound() && !_selfType->isImplicitlyConvertibleTo(*selfType()))
++		return false;
++	TypePointers paramTypes = parameterTypes();
+ 	if (takesArbitraryParameters())
+ 		return true;
+ 	else if (_argumentTypes.size() != paramTypes.size())
+@@ -1678,11 +1738,12 @@ TypePointer FunctionType::copyAndSetGasOrValue(bool _setGas, bool _setValue) con
+ 		m_arbitraryParameters,
+ 		m_declaration,
+ 		m_gasSet || _setGas,
+-		m_valueSet || _setValue
++		m_valueSet || _setValue,
++		m_bound
+ 	);
+ }
+ 
+-FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary) const
++FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary, bool _bound) const
+ {
+ 	TypePointers parameterTypes;
+ 	for (auto const& t: m_parameterTypes)
+@@ -1698,7 +1759,7 @@ FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary) const
+ 	TypePointers returnParameterTypes;
+ 	vector<string> returnParameterNames;
+ 	for (size_t i = 0; i < m_returnParameterTypes.size(); ++i)
+-		if (m_returnParameterTypes[i]->calldataEncodedSize() > 0)
++		if (!m_returnParameterTypes[i]->isDynamicallySized())
+ 		{
+ 			returnParameterTypes.push_back(m_returnParameterTypes[i]);
+ 			returnParameterNames.push_back(m_returnParameterNames[i]);
+@@ -1712,14 +1773,15 @@ FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary) const
+ 		m_arbitraryParameters,
+ 		m_declaration,
+ 		m_gasSet,
+-		m_valueSet
++		m_valueSet,
++		_bound
+ 	);
+ }
+ 
+ vector<string> const FunctionType::parameterTypeNames(bool _addDataLocation) const
+ {
+ 	vector<string> names;
+-	for (TypePointer const& t: m_parameterTypes)
++	for (TypePointer const& t: parameterTypes())
+ 		names.push_back(t->canonicalName(_addDataLocation));
+ 
+ 	return names;
+@@ -1734,6 +1796,12 @@ vector<string> const FunctionType::returnParameterTypeNames(bool _addDataLocatio
+ 	return names;
+ }
+ 
++TypePointer FunctionType::selfType() const
++{
++	solAssert(bound(), "");
++	return m_parameterTypes.at(0);
++}
++
+ ASTPointer<ASTString> FunctionType::documentation() const
+ {
+ 	auto function = dynamic_cast<Documented const*>(m_declaration);
+@@ -1784,42 +1852,37 @@ unsigned TypeType::sizeOnStack() const
+ 	return 0;
+ }
+ 
+-MemberList const& TypeType::members() const
++MemberList::MemberMap TypeType::nativeMembers(ContractDefinition const* _currentScope) const
+ {
+-	// We need to lazy-initialize it because of recursive references.
+-	if (!m_members)
++	MemberList::MemberMap members;
++	if (m_actualType->category() == Category::Contract)
+ 	{
+-		MemberList::MemberMap members;
+-		if (m_actualType->category() == Category::Contract)
+-		{
+-			ContractDefinition const& contract = dynamic_cast<ContractType const&>(*m_actualType).contractDefinition();
+-			if (contract.isLibrary())
+-				for (auto const& it: contract.interfaceFunctions())
+-					members.push_back(MemberList::Member(
+-						it.second->declaration().name(),
+-						it.second->asMemberFunction(true), // use callcode
+-						&it.second->declaration()
+-					));
+-			else if (m_currentContract != nullptr)
+-			{
+-				auto const& currentBases = m_currentContract->annotation().linearizedBaseContracts;
+-				if (find(currentBases.begin(), currentBases.end(), &contract) != currentBases.end())
+-					// We are accessing the type of a base contract, so add all public and protected
+-					// members. Note that this does not add inherited functions on purpose.
+-					for (Declaration const* decl: contract.inheritableMembers())
+-						members.push_back(MemberList::Member(decl->name(), decl->type(), decl));
+-			}
+-		}
+-		else if (m_actualType->category() == Category::Enum)
++		ContractDefinition const& contract = dynamic_cast<ContractType const&>(*m_actualType).contractDefinition();
++		if (contract.isLibrary())
++			for (auto const& it: contract.interfaceFunctions())
++				members.push_back(MemberList::Member(
++					it.second->declaration().name(),
++					it.second->asMemberFunction(true), // use callcode
++					&it.second->declaration()
++				));
++		else if (_currentScope != nullptr)
+ 		{
+-			EnumDefinition const& enumDef = dynamic_cast<EnumType const&>(*m_actualType).enumDefinition();
+-			auto enumType = make_shared<EnumType>(enumDef);
+-			for (ASTPointer<EnumValue> const& enumValue: enumDef.members())
+-				members.push_back(MemberList::Member(enumValue->name(), enumType));
++			auto const& currentBases = _currentScope->annotation().linearizedBaseContracts;
++			if (find(currentBases.begin(), currentBases.end(), &contract) != currentBases.end())
++				// We are accessing the type of a base contract, so add all public and protected
++				// members. Note that this does not add inherited functions on purpose.
++				for (Declaration const* decl: contract.inheritableMembers())
++					members.push_back(MemberList::Member(decl->name(), decl->type(), decl));
+ 		}
+-		m_members.reset(new MemberList(members));
+ 	}
+-	return *m_members;
++	else if (m_actualType->category() == Category::Enum)
++	{
++		EnumDefinition const& enumDef = dynamic_cast<EnumType const&>(*m_actualType).enumDefinition();
++		auto enumType = make_shared<EnumType>(enumDef);
++		for (ASTPointer<EnumValue> const& enumValue: enumDef.members())
++			members.push_back(MemberList::Member(enumValue->name(), enumType));
++	}
++	return members;
+ }
+ 
+ ModifierType::ModifierType(const ModifierDefinition& _modifier)
+@@ -1864,11 +1927,23 @@ string ModifierType::toString(bool _short) const
+ 
+ MagicType::MagicType(MagicType::Kind _kind):
+ 	m_kind(_kind)
++{
++}
++
++bool MagicType::operator==(Type const& _other) const
++{
++	if (_other.category() != category())
++		return false;
++	MagicType const& other = dynamic_cast<MagicType const&>(_other);
++	return other.m_kind == m_kind;
++}
++
++MemberList::MemberMap MagicType::nativeMembers(ContractDefinition const*) const
+ {
+ 	switch (m_kind)
+ 	{
+ 	case Kind::Block:
+-		m_members = MemberList({
++		return MemberList::MemberMap({
+ 			{"coinbase", make_shared<IntegerType>(0, IntegerType::Modifier::Address)},
+ 			{"timestamp", make_shared<IntegerType>(256)},
+ 			{"blockhash", make_shared<FunctionType>(strings{"uint"}, strings{"bytes32"}, FunctionType::Location::BlockHash)},
+@@ -1876,35 +1951,24 @@ MagicType::MagicType(MagicType::Kind _kind):
+ 			{"number", make_shared<IntegerType>(256)},
+ 			{"gaslimit", make_shared<IntegerType>(256)}
+ 		});
+-		break;
+ 	case Kind::Message:
+-		m_members = MemberList({
++		return MemberList::MemberMap({
+ 			{"sender", make_shared<IntegerType>(0, IntegerType::Modifier::Address)},
+ 			{"gas", make_shared<IntegerType>(256)},
+ 			{"value", make_shared<IntegerType>(256)},
+ 			{"data", make_shared<ArrayType>(DataLocation::CallData)},
+ 			{"sig", make_shared<FixedBytesType>(4)}
+ 		});
+-		break;
+ 	case Kind::Transaction:
+-		m_members = MemberList({
++		return MemberList::MemberMap({
+ 			{"origin", make_shared<IntegerType>(0, IntegerType::Modifier::Address)},
+ 			{"gasprice", make_shared<IntegerType>(256)}
+ 		});
+-		break;
+ 	default:
+ 		BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment("Unknown kind of magic."));
+ 	}
+ }
+ 
+-bool MagicType::operator==(Type const& _other) const
+-{
+-	if (_other.category() != category())
+-		return false;
+-	MagicType const& other = dynamic_cast<MagicType const&>(_other);
+-	return other.m_kind == m_kind;
+-}
+-
+ string MagicType::toString(bool) const
+ {
+ 	switch (m_kind)
+diff --git a/libsolidity/ast/Types.h b/libsolidity/ast/Types.h
+index 2f75975f..3ebcb2b2 100644
+--- a/libsolidity/ast/Types.h
++++ b/libsolidity/ast/Types.h
+@@ -90,6 +90,7 @@ public:
+ 	MemberList() {}
+ 	explicit MemberList(MemberMap const& _members): m_memberTypes(_members) {}
+ 	MemberList& operator=(MemberList&& _other);
++	void combine(MemberList const& _other);
+ 	TypePointer memberType(std::string const& _name) const
+ 	{
+ 		TypePointer type;
+@@ -141,9 +142,6 @@ public:
+ 	/// Factory functions that convert an AST @ref TypeName to a Type.
+ 	static TypePointer fromElementaryTypeName(Token::Value _typeToken);
+ 	static TypePointer fromElementaryTypeName(std::string const& _name);
+-	static TypePointer fromUserDefinedTypeName(UserDefinedTypeName const& _typeName);
+-	static TypePointer fromMapping(ElementaryTypeName& _keyType, TypeName& _valueType);
+-	static TypePointer fromArrayTypeName(TypeName& _baseTypeName, Expression* _length);
+ 	/// @}
+ 
+ 	/// Auto-detect the proper type for a literal. @returns an empty pointer if the literal does
+@@ -152,8 +150,6 @@ public:
+ 	/// @returns a pointer to _a or _b if the other is implicitly convertible to it or nullptr otherwise
+ 	static TypePointer commonType(TypePointer const& _a, TypePointer const& _b);
+ 
+-	/// Calculates the
+-
+ 	virtual Category category() const = 0;
+ 	virtual bool isImplicitlyConvertibleTo(Type const& _other) const { return *this == _other; }
+ 	virtual bool isExplicitlyConvertibleTo(Type const& _convertTo) const
+@@ -175,8 +171,9 @@ public:
+ 	virtual bool operator==(Type const& _other) const { return category() == _other.category(); }
+ 	virtual bool operator!=(Type const& _other) const { return !this->operator ==(_other); }
+ 
+-	/// @returns number of bytes used by this type when encoded for CALL, or 0 if the encoding
+-	/// is not a simple big-endian encoding or the type cannot be stored in calldata.
++	/// @returns number of bytes used by this type when encoded for CALL. If it is a dynamic type,
++	/// returns the size of the pointer (usually 32). Returns 0 if the type cannot be encoded
++	/// in calldata.
+ 	/// If @a _padded then it is assumed that each element is padded to a multiple of 32 bytes.
+ 	virtual unsigned calldataEncodedSize(bool _padded) const { (void)_padded; return 0; }
+ 	/// @returns the size of this data type in bytes when stored in memory. For memory-reference
+@@ -218,10 +215,14 @@ public:
+ 		return _targetType->dataStoredIn(DataLocation::Storage) ? mobileType() : _targetType;
+ 	}
+ 
+-	/// Returns the list of all members of this type. Default implementation: no members.
+-	virtual MemberList const& members() const { return EmptyMemberList; }
++	/// Returns the list of all members of this type. Default implementation: no members apart from bound.
++	/// @param _currentScope scope in which the members are accessed.
++	MemberList const& members(ContractDefinition const* _currentScope) const;
+ 	/// Convenience method, returns the type of the given named member or an empty pointer if no such member exists.
+-	TypePointer memberType(std::string const& _name) const { return members().memberType(_name); }
++	TypePointer memberType(std::string const& _name, ContractDefinition const* _currentScope = nullptr) const
++	{
++		return members(_currentScope).memberType(_name);
++	}
+ 
+ 	virtual std::string toString(bool _short) const = 0;
+ 	std::string toString() const { return toString(false); }
+@@ -249,9 +250,20 @@ public:
+ 	/// are returned without modification.
+ 	virtual TypePointer interfaceType(bool /*_inLibrary*/) const { return TypePointer(); }
+ 
++private:
++	/// @returns a member list containing all members added to this type by `using for` directives.
++	static MemberList::MemberMap boundFunctions(Type const& _type, ContractDefinition const& _scope);
++
+ protected:
+-	/// Convenience object used when returning an empty member list.
+-	static const MemberList EmptyMemberList;
++	/// @returns the members native to this type depending on the given context. This function
++	/// is used (in conjunction with boundFunctions to fill m_members below.
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const* /*_currentScope*/) const
++	{
++		return MemberList::MemberMap();
++	}
++
++	/// List of member types (parameterised by scape), will be lazy-initialized.
++	mutable std::map<ContractDefinition const*, std::unique_ptr<MemberList>> m_members;
+ };
+ 
+ /**
+@@ -279,7 +291,7 @@ public:
+ 	virtual unsigned storageBytes() const override { return m_bits / 8; }
+ 	virtual bool isValueType() const override { return true; }
+ 
+-	virtual MemberList const& members() const override { return isAddress() ? AddressMemberList : EmptyMemberList; }
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const*) const override;
+ 
+ 	virtual std::string toString(bool _short) const override;
+ 
+@@ -290,8 +302,6 @@ public:
+ 	bool isAddress() const { return m_modifier == Modifier::Address; }
+ 	bool isSigned() const { return m_modifier == Modifier::Signed; }
+ 
+-	static const MemberList AddressMemberList;
+-
+ private:
+ 	int m_bits;
+ 	Modifier m_modifier;
+@@ -512,7 +522,7 @@ public:
+ 	virtual unsigned sizeOnStack() const override;
+ 	virtual std::string toString(bool _short) const override;
+ 	virtual std::string canonicalName(bool _addDataLocation) const override;
+-	virtual MemberList const& members() const override;
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const* _currentScope) const override;
+ 	virtual TypePointer encodingType() const override;
+ 	virtual TypePointer decodingType() const override;
+ 	virtual TypePointer interfaceType(bool _inLibrary) const override;
+@@ -536,8 +546,6 @@ private:
+ 	TypePointer m_baseType;
+ 	bool m_hasDynamicLength = true;
+ 	u256 m_length;
+-	/// List of member types, will be lazy-initialized because of recursive references.
+-	mutable std::unique_ptr<MemberList> m_members;
+ };
+ 
+ /**
+@@ -565,7 +573,7 @@ public:
+ 	virtual std::string toString(bool _short) const override;
+ 	virtual std::string canonicalName(bool _addDataLocation) const override;
+ 
+-	virtual MemberList const& members() const override;
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const* _currentScope) const override;
+ 	virtual TypePointer encodingType() const override
+ 	{
+ 		return std::make_shared<IntegerType>(160, IntegerType::Modifier::Address);
+@@ -597,8 +605,6 @@ private:
+ 	bool m_super = false;
+ 	/// Type of the constructor, @see constructorType. Lazily initialized.
+ 	mutable FunctionTypePointer m_constructorType;
+-	/// List of member types, will be lazy-initialized because of recursive references.
+-	mutable std::unique_ptr<MemberList> m_members;
+ };
+ 
+ /**
+@@ -618,7 +624,7 @@ public:
+ 	virtual bool canLiveOutsideStorage() const override { return true; }
+ 	virtual std::string toString(bool _short) const override;
+ 
+-	virtual MemberList const& members() const override;
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const* _currentScope) const override;
+ 	virtual TypePointer encodingType() const override
+ 	{
+ 		return location() == DataLocation::Storage ? std::make_shared<IntegerType>(256) : TypePointer();
+@@ -643,8 +649,6 @@ public:
+ 
+ private:
+ 	StructDefinition const& m_struct;
+-	/// List of member types, will be lazy-initialized because of recursive references.
+-	mutable std::unique_ptr<MemberList> m_members;
+ };
+ 
+ /**
+@@ -683,8 +687,6 @@ public:
+ 
+ private:
+ 	EnumDefinition const& m_enum;
+-	/// List of member types, will be lazy-initialized because of recursive references.
+-	mutable std::unique_ptr<MemberList> m_members;
+ };
+ 
+ /**
+@@ -734,7 +736,7 @@ public:
+ 		Creation, ///< external call using CREATE
+ 		Send, ///< CALL, but without data and gas
+ 		SHA3, ///< SHA3
+-		Suicide, ///< SUICIDE
++		Selfdestruct, ///< SELFDESTRUCT
+ 		ECRecover, ///< CALL to special contract for ecrecover
+ 		SHA256, ///< CALL to special contract for sha256
+ 		RIPEMD160, ///< CALL to special contract for ripemd160
+@@ -747,8 +749,11 @@ public:
+ 		SetGas, ///< modify the default gas value for the function call
+ 		SetValue, ///< modify the default value transfer for the function call
+ 		BlockHash, ///< BLOCKHASH
++		AddMod, ///< ADDMOD
++		MulMod, ///< MULMOD
+ 		ArrayPush, ///< .push() to a dynamically sized array in storage
+-		ByteArrayPush ///< .push() to a dynamically sized byte array in storage
++		ByteArrayPush, ///< .push() to a dynamically sized byte array in storage
++		ObjectCreation ///< array creation using new
+ 	};
+ 
+ 	virtual Category category() const override { return Category::Function; }
+@@ -783,7 +788,8 @@ public:
+ 		bool _arbitraryParameters = false,
+ 		Declaration const* _declaration = nullptr,
+ 		bool _gasSet = false,
+-		bool _valueSet = false
++		bool _valueSet = false,
++		bool _bound = false
+ 	):
+ 		m_parameterTypes(_parameterTypes),
+ 		m_returnParameterTypes(_returnParameterTypes),
+@@ -793,15 +799,18 @@ public:
+ 		m_arbitraryParameters(_arbitraryParameters),
+ 		m_gasSet(_gasSet),
+ 		m_valueSet(_valueSet),
++		m_bound(_bound),
+ 		m_declaration(_declaration)
+ 	{}
+ 
+-	TypePointers const& parameterTypes() const { return m_parameterTypes; }
+-	std::vector<std::string> const& parameterNames() const { return m_parameterNames; }
++	TypePointers parameterTypes() const;
++	std::vector<std::string> parameterNames() const;
+ 	std::vector<std::string> const parameterTypeNames(bool _addDataLocation) const;
+ 	TypePointers const& returnParameterTypes() const { return m_returnParameterTypes; }
+ 	std::vector<std::string> const& returnParameterNames() const { return m_returnParameterNames; }
+ 	std::vector<std::string> const returnParameterTypeNames(bool _addDataLocation) const;
++	/// @returns the "self" parameter type for a bound function
++	TypePointer selfType() const;
+ 
+ 	virtual bool operator==(Type const& _other) const override;
+ 	virtual std::string toString(bool _short) const override;
+@@ -809,7 +818,7 @@ public:
+ 	virtual u256 storageSize() const override;
+ 	virtual bool canLiveOutsideStorage() const override { return false; }
+ 	virtual unsigned sizeOnStack() const override;
+-	virtual MemberList const& members() const override;
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const* _currentScope) const override;
+ 
+ 	/// @returns TypePointer of a new FunctionType object. All input/return parameters are an
+ 	/// appropriate external types (i.e. the interfaceType()s) of input/return parameters of
+@@ -820,7 +829,9 @@ public:
+ 
+ 	/// @returns true if this function can take the given argument types (possibly
+ 	/// after implicit conversion).
+-	bool canTakeArguments(TypePointers const& _arguments) const;
++	/// @param _selfType if the function is bound, this has to be supplied and is the type of the
++	/// expression the function is called on.
++	bool canTakeArguments(TypePointers const& _arguments, TypePointer const& _selfType = TypePointer()) const;
+ 	/// @returns true if the types of parameters are equal (does't check return parameter types)
+ 	bool hasEqualArgumentTypes(FunctionType const& _other) const;
+ 
+@@ -847,6 +858,7 @@ public:
+ 	bool takesArbitraryParameters() const { return m_arbitraryParameters; }
+ 	bool gasSet() const { return m_gasSet; }
+ 	bool valueSet() const { return m_valueSet; }
++	bool bound() const { return m_bound; }
+ 
+ 	/// @returns a copy of this type, where gas or value are set manually. This will never set one
+ 	/// of the parameters to fals.
+@@ -857,7 +869,8 @@ public:
+ 	/// This is needed if external functions are called on other contracts, as they cannot return
+ 	/// dynamic values.
+ 	/// @param _inLibrary if true, uses CallCode as location.
+-	FunctionTypePointer asMemberFunction(bool _inLibrary) const;
++	/// @param _bound if true, the argumenst are placed as `arg1.functionName(arg2, ..., argn)`.
++	FunctionTypePointer asMemberFunction(bool _inLibrary, bool _bound = false) const;
+ 
+ private:
+ 	static TypePointers parseElementaryTypeVector(strings const& _types);
+@@ -871,8 +884,8 @@ private:
+ 	bool const m_arbitraryParameters = false;
+ 	bool const m_gasSet = false; ///< true iff the gas value to be used is on the stack
+ 	bool const m_valueSet = false; ///< true iff the value to be sent is on the stack
++	bool const m_bound = false; ///< true iff the function is called as arg1.fun(arg2, ..., argn)
+ 	bool m_isConstant = false;
+-	mutable std::unique_ptr<MemberList> m_members;
+ 	Declaration const* m_declaration = nullptr;
+ };
+ 
+@@ -917,8 +930,7 @@ class TypeType: public Type
+ {
+ public:
+ 	virtual Category category() const override { return Category::TypeType; }
+-	explicit TypeType(TypePointer const& _actualType, ContractDefinition const* _currentContract = nullptr):
+-		m_actualType(_actualType), m_currentContract(_currentContract) {}
++	explicit TypeType(TypePointer const& _actualType): m_actualType(_actualType) {}
+ 	TypePointer const& actualType() const { return m_actualType; }
+ 
+ 	virtual TypePointer binaryOperatorResult(Token::Value, TypePointer const&) const override { return TypePointer(); }
+@@ -928,14 +940,10 @@ public:
+ 	virtual bool canLiveOutsideStorage() const override { return false; }
+ 	virtual unsigned sizeOnStack() const override;
+ 	virtual std::string toString(bool _short) const override { return "type(" + m_actualType->toString(_short) + ")"; }
+-	virtual MemberList const& members() const override;
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const* _currentScope) const override;
+ 
+ private:
+ 	TypePointer m_actualType;
+-	/// Context in which this type is used (influences visibility etc.), can be nullptr.
+-	ContractDefinition const* m_currentContract;
+-	/// List of member types, will be lazy-initialized because of recursive references.
+-	mutable std::unique_ptr<MemberList> m_members;
+ };
+ 
+ 
+@@ -982,14 +990,12 @@ public:
+ 	virtual bool canBeStored() const override { return false; }
+ 	virtual bool canLiveOutsideStorage() const override { return true; }
+ 	virtual unsigned sizeOnStack() const override { return 0; }
+-	virtual MemberList const& members() const override { return m_members; }
++	virtual MemberList::MemberMap nativeMembers(ContractDefinition const*) const override;
+ 
+ 	virtual std::string toString(bool _short) const override;
+ 
+ private:
+ 	Kind m_kind;
+-
+-	MemberList m_members;
+ };
+ 
+ }
+diff --git a/libsolidity/codegen/ArrayUtils.cpp b/libsolidity/codegen/ArrayUtils.cpp
+index ba26caa6..f1acce31 100644
+--- a/libsolidity/codegen/ArrayUtils.cpp
++++ b/libsolidity/codegen/ArrayUtils.cpp
+@@ -271,7 +271,7 @@ void ArrayUtils::copyArrayToStorage(ArrayType const& _targetType, ArrayType cons
+ void ArrayUtils::copyArrayToMemory(ArrayType const& _sourceType, bool _padToWordBoundaries) const
+ {
+ 	solAssert(
+-		_sourceType.baseType()->calldataEncodedSize() > 0,
++		!_sourceType.baseType()->isDynamicallySized(),
+ 		"Nested dynamic arrays not implemented here."
+ 	);
+ 	CompilerUtils utils(m_context);
+diff --git a/libsolidity/codegen/Compiler.cpp b/libsolidity/codegen/Compiler.cpp
+index 5daa37de..18803b71 100644
+--- a/libsolidity/codegen/Compiler.cpp
++++ b/libsolidity/codegen/Compiler.cpp
+@@ -24,12 +24,11 @@
+ #include <algorithm>
+ #include <boost/range/adaptor/reversed.hpp>
+ #include <libevmcore/Instruction.h>
++#include <libethcore/ChainOperationParams.h>
+ #include <libevmasm/Assembly.h>
+-#include <libevmcore/Params.h>
+ #include <libsolidity/ast/AST.h>
+ #include <libsolidity/codegen/ExpressionCompiler.h>
+ #include <libsolidity/codegen/CompilerUtils.h>
+-
+ using namespace std;
+ using namespace dev;
+ using namespace dev::solidity;
+@@ -306,11 +305,19 @@ void Compiler::appendCalldataUnpacker(TypePointers const& _typeParameters, bool
+ 				// @todo If base type is an array or struct, it is still calldata-style encoded, so
+ 				// we would have to convert it like below.
+ 				solAssert(arrayType.location() == DataLocation::Memory, "");
+-				// compute data pointer
+-				m_context << eth::Instruction::DUP1 << eth::Instruction::MLOAD;
+-				m_context << eth::Instruction::DUP3 << eth::Instruction::ADD;
+-				m_context << eth::Instruction::SWAP2 << eth::Instruction::SWAP1;
+-				m_context << u256(0x20) << eth::Instruction::ADD;
++				if (arrayType.isDynamicallySized())
++				{
++					// compute data pointer
++					m_context << eth::Instruction::DUP1 << eth::Instruction::MLOAD;
++					m_context << eth::Instruction::DUP3 << eth::Instruction::ADD;
++					m_context << eth::Instruction::SWAP2 << eth::Instruction::SWAP1;
++					m_context << u256(0x20) << eth::Instruction::ADD;
++				}
++				else
++				{
++					m_context << eth::Instruction::DUP1;
++					m_context << u256(arrayType.calldataEncodedSize(true)) << eth::Instruction::ADD;
++				}
+ 			}
+ 			else
+ 			{
+@@ -386,7 +393,7 @@ void Compiler::registerStateVariables(ContractDefinition const& _contract)
+ 
+ void Compiler::initializeStateVariables(ContractDefinition const& _contract)
+ {
+-	for (ASTPointer<VariableDeclaration> const& variable: _contract.stateVariables())
++	for (VariableDeclaration const* variable: _contract.stateVariables())
+ 		if (variable->value() && !variable->isConstant())
+ 			ExpressionCompiler(m_context, m_optimize).appendStateVariableInitialization(*variable);
+ }
+@@ -760,6 +767,7 @@ void Compiler::compileExpression(Expression const& _expression, TypePointer cons
+ 
+ eth::Assembly Compiler::cloneRuntime()
+ {
++	eth::EVMSchedule schedule;
+ 	eth::Assembly a;
+ 	a << eth::Instruction::CALLDATASIZE;
+ 	a << u256(0) << eth::Instruction::DUP1 << eth::Instruction::CALLDATACOPY;
+@@ -771,7 +779,7 @@ eth::Assembly Compiler::cloneRuntime()
+ 	// this is the address which has to be substituted by the linker.
+ 	//@todo implement as special "marker" AssemblyItem.
+ 	a << u256("0xcafecafecafecafecafecafecafecafecafecafe");
+-	a << u256(eth::c_callGas + eth::c_callValueTransferGas + 10) << eth::Instruction::GAS << eth::Instruction::SUB;
++	a << u256(schedule.callGas + schedule.callValueTransferGas + 10) << eth::Instruction::GAS << eth::Instruction::SUB;
+ 	a << eth::Instruction::CALLCODE;
+ 	//Propagate error condition (if CALLCODE pushes 0 on stack).
+ 	a << eth::Instruction::ISZERO;
+diff --git a/libsolidity/codegen/Compiler.h b/libsolidity/codegen/Compiler.h
+index 14314434..9d069f7c 100644
+--- a/libsolidity/codegen/Compiler.h
++++ b/libsolidity/codegen/Compiler.h
+@@ -92,13 +92,6 @@ private:
+ 	void registerStateVariables(ContractDefinition const& _contract);
+ 	void initializeStateVariables(ContractDefinition const& _contract);
+ 
+-	/// Initialises all memory arrays in the local variables to point to an empty location.
+-	void initialiseMemoryArrays(std::vector<VariableDeclaration const*> _variables);
+-	/// Pushes the initialised value of the given type to the stack. If the type is a memory
+-	/// reference type, allocates memory and pushes the memory pointer.
+-	/// Not to be used for storage references.
+-	void initialiseInMemory(Type const& _type);
+-
+ 	virtual bool visit(VariableDeclaration const& _variableDeclaration) override;
+ 	virtual bool visit(FunctionDefinition const& _function) override;
+ 	virtual bool visit(IfStatement const& _ifStatement) override;
+diff --git a/libsolidity/codegen/CompilerContext.cpp b/libsolidity/codegen/CompilerContext.cpp
+index 00b9d87c..9e2405cc 100644
+--- a/libsolidity/codegen/CompilerContext.cpp
++++ b/libsolidity/codegen/CompilerContext.cpp
+@@ -133,9 +133,9 @@ ModifierDefinition const& CompilerContext::functionModifier(string const& _name)
+ {
+ 	solAssert(!m_inheritanceHierarchy.empty(), "No inheritance hierarchy set.");
+ 	for (ContractDefinition const* contract: m_inheritanceHierarchy)
+-		for (ASTPointer<ModifierDefinition> const& modifier: contract->functionModifiers())
++		for (ModifierDefinition const* modifier: contract->functionModifiers())
+ 			if (modifier->name() == _name)
+-				return *modifier.get();
++				return *modifier;
+ 	BOOST_THROW_EXCEPTION(InternalCompilerError()
+ 		<< errinfo_comment("Function modifier " + _name + " not found."));
+ }
+@@ -195,7 +195,7 @@ eth::AssemblyItem CompilerContext::virtualFunctionEntryLabel(
+ 	FunctionType functionType(_function);
+ 	auto it = _searchStart;
+ 	for (; it != m_inheritanceHierarchy.end(); ++it)
+-		for (ASTPointer<FunctionDefinition> const& function: (*it)->definedFunctions())
++		for (FunctionDefinition const* function: (*it)->definedFunctions())
+ 			if (
+ 				function->name() == name &&
+ 				!function->isConstructor() &&
+diff --git a/libsolidity/codegen/CompilerUtils.cpp b/libsolidity/codegen/CompilerUtils.cpp
+index dd38ef97..bd0857f6 100644
+--- a/libsolidity/codegen/CompilerUtils.cpp
++++ b/libsolidity/codegen/CompilerUtils.cpp
+@@ -23,7 +23,6 @@
+ #include <libsolidity/codegen/CompilerUtils.h>
+ #include <libsolidity/ast/AST.h>
+ #include <libevmcore/Instruction.h>
+-#include <libevmcore/Params.h>
+ #include <libsolidity/codegen/ArrayUtils.h>
+ #include <libsolidity/codegen/LValue.h>
+ 
+@@ -267,6 +266,19 @@ void CompilerUtils::encodeToMemory(
+ 	popStackSlots(argSize + dynPointers + 1);
+ }
+ 
++void CompilerUtils::zeroInitialiseMemoryArray(ArrayType const& _type)
++{
++	auto repeat = m_context.newTag();
++	m_context << repeat;
++	pushZeroValue(*_type.baseType());
++	storeInMemoryDynamic(*_type.baseType());
++	m_context << eth::Instruction::SWAP1 << u256(1) << eth::Instruction::SWAP1;
++	m_context << eth::Instruction::SUB << eth::Instruction::SWAP1;
++	m_context << eth::Instruction::DUP2;
++	m_context.appendConditionalJumpTo(repeat);
++	m_context << eth::Instruction::SWAP1 << eth::Instruction::POP;
++}
++
+ void CompilerUtils::memoryCopy()
+ {
+ 	// Stack here: size target source
+@@ -276,8 +288,10 @@ void CompilerUtils::memoryCopy()
+ 	m_context << u256(0) << u256(identityContractAddress);
+ 	// compute gas costs
+ 	m_context << u256(32) << eth::Instruction::DUP5 << u256(31) << eth::Instruction::ADD;
+-	m_context << eth::Instruction::DIV << u256(eth::c_identityWordGas) << eth::Instruction::MUL;
+-	m_context << u256(eth::c_identityGas) << eth::Instruction::ADD;
++	static unsigned c_identityGas = 3;
++	static unsigned c_identityWordGas = 15;
++	m_context << eth::Instruction::DIV << u256(c_identityWordGas) << eth::Instruction::MUL;
++	m_context << u256(c_identityGas) << eth::Instruction::ADD;
+ 	m_context << eth::Instruction::CALL;
+ 	m_context << eth::Instruction::POP; // ignore return value
+ }
+@@ -528,7 +542,7 @@ void CompilerUtils::convertType(Type const& _typeOnStack, Type const& _targetTyp
+ 				allocateMemory();
+ 				m_context << eth::Instruction::SWAP1 << eth::Instruction::DUP2;
+ 				// stack: <memory ptr> <source ref> <memory ptr>
+-				for (auto const& member: typeOnStack.members())
++				for (auto const& member: typeOnStack.members(nullptr))
+ 				{
+ 					if (!member.type->canLiveOutsideStorage())
+ 						continue;
+@@ -612,7 +626,7 @@ void CompilerUtils::convertType(Type const& _typeOnStack, Type const& _targetTyp
+ 	}
+ }
+ 
+-void CompilerUtils::pushZeroValue(const Type& _type)
++void CompilerUtils::pushZeroValue(Type const& _type)
+ {
+ 	auto const* referenceType = dynamic_cast<ReferenceType const*>(&_type);
+ 	if (!referenceType || referenceType->location() == DataLocation::Storage)
+@@ -628,7 +642,7 @@ void CompilerUtils::pushZeroValue(const Type& _type)
+ 	m_context << eth::Instruction::DUP1;
+ 
+ 	if (auto structType = dynamic_cast<StructType const*>(&_type))
+-		for (auto const& member: structType->members())
++		for (auto const& member: structType->members(nullptr))
+ 		{
+ 			pushZeroValue(*member.type);
+ 			storeInMemoryDynamic(*member.type);
+@@ -645,15 +659,8 @@ void CompilerUtils::pushZeroValue(const Type& _type)
+ 		{
+ 			m_context << arrayType->length() << eth::Instruction::SWAP1;
+ 			// stack: items_to_do memory_pos
+-			auto repeat = m_context.newTag();
+-			m_context << repeat;
+-			pushZeroValue(*arrayType->baseType());
+-			storeInMemoryDynamic(*arrayType->baseType());
+-			m_context << eth::Instruction::SWAP1 << u256(1) << eth::Instruction::SWAP1;
+-			m_context << eth::Instruction::SUB << eth::Instruction::SWAP1;
+-			m_context << eth::Instruction::DUP2;
+-			m_context.appendConditionalJumpTo(repeat);
+-			m_context << eth::Instruction::SWAP1 << eth::Instruction::POP;
++			zeroInitialiseMemoryArray(*arrayType);
++			// stack: updated_memory_pos
+ 		}
+ 	}
+ 	else
+@@ -688,18 +695,31 @@ void CompilerUtils::copyToStackTop(unsigned _stackDepth, unsigned _itemSize)
+ 
+ void CompilerUtils::moveToStackTop(unsigned _stackDepth, unsigned _itemSize)
+ {
+-	solAssert(_stackDepth <= 15, "Stack too deep, try removing local variables.");
+-	for (unsigned j = 0; j < _itemSize; ++j)
+-		for (unsigned i = 0; i < _stackDepth + _itemSize - 1; ++i)
+-			m_context << eth::swapInstruction(1 + i);
++	moveIntoStack(_itemSize, _stackDepth);
+ }
+ 
+ void CompilerUtils::moveIntoStack(unsigned _stackDepth, unsigned _itemSize)
+ {
+-	solAssert(_stackDepth <= 16, "Stack too deep, try removing local variables.");
+-	for (unsigned j = 0; j < _itemSize; ++j)
+-		for (unsigned i = _stackDepth; i > 0; --i)
+-			m_context << eth::swapInstruction(i + _itemSize - 1);
++	if (_stackDepth <= _itemSize)
++		for (unsigned i = 0; i < _stackDepth; ++i)
++			rotateStackDown(_stackDepth + _itemSize);
++	else
++		for (unsigned i = 0; i < _itemSize; ++i)
++			rotateStackUp(_stackDepth + _itemSize);
++}
++
++void CompilerUtils::rotateStackUp(unsigned _items)
++{
++	solAssert(_items - 1 <= 16, "Stack too deep, try removing local variables.");
++	for (unsigned i = 1; i < _items; ++i)
++		m_context << eth::swapInstruction(_items - i);
++}
++
++void CompilerUtils::rotateStackDown(unsigned _items)
++{
++	solAssert(_items - 1 <= 16, "Stack too deep, try removing local variables.");
++	for (unsigned i = 1; i < _items; ++i)
++		m_context << eth::swapInstruction(i);
+ }
+ 
+ void CompilerUtils::popStackElement(Type const& _type)
+diff --git a/libsolidity/codegen/CompilerUtils.h b/libsolidity/codegen/CompilerUtils.h
+index 6292e5c7..55254013 100644
+--- a/libsolidity/codegen/CompilerUtils.h
++++ b/libsolidity/codegen/CompilerUtils.h
+@@ -103,6 +103,11 @@ public:
+ 		bool _encodeAsLibraryTypes = false
+ 	);
+ 
++	/// Zero-initialises (the data part of) an already allocated memory array.
++	/// Stack pre: <length> <memptr>
++	/// Stack post: <updated_memptr>
++	void zeroInitialiseMemoryArray(ArrayType const& _type);
++
+ 	/// Uses a CALL to the identity contract to perform a memory-to-memory copy.
+ 	/// Stack pre: <size> <target> <source>
+ 	/// Stack post:
+@@ -129,6 +134,12 @@ public:
+ 	void moveToStackTop(unsigned _stackDepth, unsigned _itemSize = 1);
+ 	/// Moves @a _itemSize elements past @a _stackDepth other stack elements
+ 	void moveIntoStack(unsigned _stackDepth, unsigned _itemSize = 1);
++	/// Rotates the topmost @a _items items on the stack, such that the previously topmost element
++	/// is bottom-most.
++	void rotateStackUp(unsigned _items);
++	/// Rotates the topmost @a _items items on the stack, such that the previously bottom-most element
++	/// is now topmost.
++	void rotateStackDown(unsigned _items);
+ 	/// Removes the current value from the top of the stack.
+ 	void popStackElement(Type const& _type);
+ 	/// Removes element from the top of the stack _amount times.
+diff --git a/libsolidity/codegen/ExpressionCompiler.cpp b/libsolidity/codegen/ExpressionCompiler.cpp
+index 3906a897..a090a28c 100644
+--- a/libsolidity/codegen/ExpressionCompiler.cpp
++++ b/libsolidity/codegen/ExpressionCompiler.cpp
+@@ -23,17 +23,18 @@
+ #include <utility>
+ #include <numeric>
+ #include <boost/range/adaptor/reversed.hpp>
+-#include <libevmcore/Params.h>
+ #include <libdevcore/Common.h>
+ #include <libdevcore/SHA3.h>
++#include <libethcore/ChainOperationParams.h>
+ #include <libsolidity/ast/AST.h>
+ #include <libsolidity/codegen/ExpressionCompiler.h>
+ #include <libsolidity/codegen/CompilerContext.h>
+ #include <libsolidity/codegen/CompilerUtils.h>
+ #include <libsolidity/codegen/LValue.h>
+-
+ using namespace std;
+ 
++// TODO: FIXME: HOMESTEAD: XXX: @chriseth Params deprecated - use EVMSchedule instead.
++
+ namespace dev
+ {
+ namespace solidity
+@@ -421,6 +422,9 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 	else
+ 	{
+ 		FunctionType const& function = *functionType;
++		if (function.bound())
++			// Only callcode functions can be bound, this might be lifted later.
++			solAssert(function.location() == Location::CallCode, "");
+ 		switch (function.location())
+ 		{
+ 		case Location::Internal:
+@@ -534,7 +538,7 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 				{}
+ 			);
+ 			break;
+-		case Location::Suicide:
++		case Location::Selfdestruct:
+ 			arguments.front()->accept(*this);
+ 			utils().convertType(*arguments.front()->annotation().type, *function.parameterTypes().front(), true);
+ 			m_context << eth::Instruction::SUICIDE;
+@@ -637,6 +641,20 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 			m_context << eth::Instruction::BLOCKHASH;
+ 			break;
+ 		}
++		case Location::AddMod:
++		case Location::MulMod:
++		{
++			for (unsigned i = 0; i < 3; i ++)
++			{
++				arguments[2 - i]->accept(*this);
++				utils().convertType(*arguments[2 - i]->annotation().type, IntegerType(256));
++			}
++			if (function.location() == Location::AddMod)
++				m_context << eth::Instruction::ADDMOD;
++			else
++				m_context << eth::Instruction::MULMOD;
++			break;
++		}
+ 		case Location::ECRecover:
+ 		case Location::SHA256:
+ 		case Location::RIPEMD160:
+@@ -657,7 +675,7 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 			_functionCall.expression().accept(*this);
+ 			solAssert(function.parameterTypes().size() == 1, "");
+ 			solAssert(!!function.parameterTypes()[0], "");
+-			TypePointer const& paramType = function.parameterTypes()[0];
++			TypePointer paramType = function.parameterTypes()[0];
+ 			shared_ptr<ArrayType> arrayType =
+ 				function.location() == Location::ArrayPush ?
+ 				make_shared<ArrayType>(DataLocation::Storage, paramType) :
+@@ -688,6 +706,53 @@ bool ExpressionCompiler::visit(FunctionCall const& _functionCall)
+ 				StorageByteArrayElement(m_context).storeValue(*type, _functionCall.location(), true);
+ 			break;
+ 		}
++		case Location::ObjectCreation:
++		{
++			// Will allocate at the end of memory (MSIZE) and not write at all unless the base
++			// type is dynamically sized.
++			ArrayType const& arrayType = dynamic_cast<ArrayType const&>(*_functionCall.annotation().type);
++			_functionCall.expression().accept(*this);
++			solAssert(arguments.size() == 1, "");
++
++			// Fetch requested length.
++			arguments[0]->accept(*this);
++			utils().convertType(*arguments[0]->annotation().type, IntegerType(256));
++
++			// Stack: requested_length
++			// Allocate at max(MSIZE, freeMemoryPointer)
++			utils().fetchFreeMemoryPointer();
++			m_context << eth::Instruction::DUP1 << eth::Instruction::MSIZE;
++			m_context << eth::Instruction::LT;
++			auto initialise = m_context.appendConditionalJump();
++			// Free memory pointer does not point to empty memory, use MSIZE.
++			m_context << eth::Instruction::POP;
++			m_context << eth::Instruction::MSIZE;
++			m_context << initialise;
++
++			// Stack: requested_length memptr
++			m_context << eth::Instruction::SWAP1;
++			// Stack: memptr requested_length
++			// store length
++			m_context << eth::Instruction::DUP1 << eth::Instruction::DUP3 << eth::Instruction::MSTORE;
++			// Stack: memptr requested_length
++			// update free memory pointer
++			m_context << eth::Instruction::DUP1 << arrayType.baseType()->memoryHeadSize();
++			m_context << eth::Instruction::MUL << u256(32) << eth::Instruction::ADD;
++			m_context << eth::Instruction::DUP3 << eth::Instruction::ADD;
++			utils().storeFreeMemoryPointer();
++			// Stack: memptr requested_length
++
++			// We only have to initialise if the base type is a not a value type.
++			if (dynamic_cast<ReferenceType const*>(arrayType.baseType().get()))
++			{
++				m_context << eth::Instruction::DUP2 << u256(32) << eth::Instruction::ADD;
++				utils().zeroInitialiseMemoryArray(arrayType);
++				m_context << eth::Instruction::POP;
++			}
++			else
++				m_context << eth::Instruction::POP;
++			break;
++		}
+ 		default:
+ 			BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment("Invalid function type."));
+ 		}
+@@ -704,7 +769,26 @@ bool ExpressionCompiler::visit(NewExpression const&)
+ void ExpressionCompiler::endVisit(MemberAccess const& _memberAccess)
+ {
+ 	CompilerContext::LocationSetter locationSetter(m_context, _memberAccess);
++
++	// Check whether the member is a bound function.
+ 	ASTString const& member = _memberAccess.memberName();
++	if (auto funType = dynamic_cast<FunctionType const*>(_memberAccess.annotation().type.get()))
++		if (funType->bound())
++		{
++			utils().convertType(
++				*_memberAccess.expression().annotation().type,
++				*funType->selfType(),
++				true
++			);
++			auto contract = dynamic_cast<ContractDefinition const*>(funType->declaration().scope());
++			solAssert(contract && contract->isLibrary(), "");
++			//@TODO library name might not be unique
++			m_context.appendLibraryAddress(contract->name());
++			m_context << funType->externalIdentifier();
++			utils().moveIntoStack(funType->selfType()->sizeOnStack(), 2);
++			return;
++		}
++
+ 	switch (_memberAccess.expression().annotation().type->category())
+ 	{
+ 	case Type::Category::Contract:
+@@ -826,10 +910,6 @@ void ExpressionCompiler::endVisit(MemberAccess const& _memberAccess)
+ 	case Type::Category::TypeType:
+ 	{
+ 		TypeType const& type = dynamic_cast<TypeType const&>(*_memberAccess.expression().annotation().type);
+-		solAssert(
+-			!type.members().membersByName(_memberAccess.memberName()).empty(),
+-			"Invalid member access to " + type.toString(false)
+-		);
+ 
+ 		if (dynamic_cast<ContractType const*>(type.actualType().get()))
+ 		{
+@@ -981,11 +1061,11 @@ void ExpressionCompiler::endVisit(Identifier const& _identifier)
+ 	Declaration const* declaration = _identifier.annotation().referencedDeclaration;
+ 	if (MagicVariableDeclaration const* magicVar = dynamic_cast<MagicVariableDeclaration const*>(declaration))
+ 	{
+-		switch (magicVar->type(_identifier.annotation().contractScope)->category())
++		switch (magicVar->type()->category())
+ 		{
+ 		case Type::Category::Contract:
+ 			// "this" or "super"
+-			if (!dynamic_cast<ContractType const&>(*magicVar->type(_identifier.annotation().contractScope)).isSuper())
++			if (!dynamic_cast<ContractType const&>(*magicVar->type()).isSuper())
+ 				m_context << eth::Instruction::ADDRESS;
+ 			break;
+ 		case Type::Category::Integer:
+@@ -1190,15 +1270,20 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 	// <stack top>
+ 	// value [if _functionType.valueSet()]
+ 	// gas [if _functionType.gasSet()]
++	// self object [if bound - moved to top right away]
+ 	// function identifier [unless bare]
+ 	// contract address
+ 
++	unsigned selfSize = _functionType.bound() ? _functionType.selfType()->sizeOnStack() : 0;
+ 	unsigned gasValueSize = (_functionType.gasSet() ? 1 : 0) + (_functionType.valueSet() ? 1 : 0);
+-
+-	unsigned contractStackPos = m_context.currentToBaseStackOffset(1 + gasValueSize + (_functionType.isBareCall() ? 0 : 1));
++	unsigned contractStackPos = m_context.currentToBaseStackOffset(1 + gasValueSize + selfSize + (_functionType.isBareCall() ? 0 : 1));
+ 	unsigned gasStackPos = m_context.currentToBaseStackOffset(gasValueSize);
+ 	unsigned valueStackPos = m_context.currentToBaseStackOffset(1);
+ 
++	// move self object to top
++	if (_functionType.bound())
++		utils().moveToStackTop(gasValueSize, _functionType.selfType()->sizeOnStack());
++
+ 	using FunctionKind = FunctionType::Location;
+ 	FunctionKind funKind = _functionType.location();
+ 	bool returnSuccessCondition = funKind == FunctionKind::Bare || funKind == FunctionKind::BareCallCode;
+@@ -1210,12 +1295,13 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 	else
+ 		for (auto const& retType: _functionType.returnParameterTypes())
+ 		{
+-			solAssert(retType->calldataEncodedSize() > 0, "Unable to return dynamic type from external call.");
++			solAssert(!retType->isDynamicallySized(), "Unable to return dynamic type from external call.");
+ 			retSize += retType->calldataEncodedSize();
+ 		}
+ 
+ 	// Evaluate arguments.
+ 	TypePointers argumentTypes;
++	TypePointers parameterTypes = _functionType.parameterTypes();
+ 	bool manualFunctionId =
+ 		(funKind == FunctionKind::Bare || funKind == FunctionKind::BareCallCode) &&
+ 		!_arguments.empty() &&
+@@ -1236,6 +1322,11 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 		gasStackPos++;
+ 		valueStackPos++;
+ 	}
++	if (_functionType.bound())
++	{
++		argumentTypes.push_back(_functionType.selfType());
++		parameterTypes.insert(parameterTypes.begin(), _functionType.selfType());
++	}
+ 	for (size_t i = manualFunctionId ? 1 : 0; i < _arguments.size(); ++i)
+ 	{
+ 		_arguments[i]->accept(*this);
+@@ -1254,7 +1345,7 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 	// pointer on the stack).
+ 	utils().encodeToMemory(
+ 		argumentTypes,
+-		_functionType.parameterTypes(),
++		parameterTypes,
+ 		_functionType.padArguments(),
+ 		_functionType.takesArbitraryParameters(),
+ 		isCallCode
+@@ -1287,13 +1378,14 @@ void ExpressionCompiler::appendExternalFunctionCall(
+ 		m_context << eth::dupInstruction(m_context.baseToCurrentStackOffset(gasStackPos));
+ 	else
+ 	{
++		eth::EVMSchedule schedule;// TODO: Make relevant to current suppose context.
+ 		// send all gas except the amount needed to execute "SUB" and "CALL"
+ 		// @todo this retains too much gas for now, needs to be fine-tuned.
+-		u256 gasNeededByCaller = eth::c_callGas + 10;
++		u256 gasNeededByCaller = schedule.callGas + 10;
+ 		if (_functionType.valueSet())
+-			gasNeededByCaller += eth::c_callValueTransferGas;
++			gasNeededByCaller += schedule.callValueTransferGas;
+ 		if (!isCallCode)
+-			gasNeededByCaller += eth::c_callNewAccountGas; // we never know
++			gasNeededByCaller += schedule.callNewAccountGas; // we never know
+ 		m_context <<
+ 			gasNeededByCaller <<
+ 			eth::Instruction::GAS <<
+diff --git a/libsolidity/codegen/LValue.cpp b/libsolidity/codegen/LValue.cpp
+index 864f28d0..fdef6937 100644
+--- a/libsolidity/codegen/LValue.cpp
++++ b/libsolidity/codegen/LValue.cpp
+@@ -273,7 +273,7 @@ void StorageItem::storeValue(Type const& _sourceType, SourceLocation const& _loc
+ 				"Struct assignment with conversion."
+ 			);
+ 			solAssert(sourceType.location() != DataLocation::CallData, "Structs in calldata not supported.");
+-			for (auto const& member: structType.members())
++			for (auto const& member: structType.members(nullptr))
+ 			{
+ 				// assign each member that is not a mapping
+ 				TypePointer const& memberType = member.type;
+@@ -336,7 +336,7 @@ void StorageItem::setToZero(SourceLocation const&, bool _removeReference) const
+ 		// @todo this can be improved: use StorageItem for non-value types, and just store 0 in
+ 		// all slots that contain value types later.
+ 		auto const& structType = dynamic_cast<StructType const&>(*m_dataType);
+-		for (auto const& member: structType.members())
++		for (auto const& member: structType.members(nullptr))
+ 		{
+ 			// zero each member that is not a mapping
+ 			TypePointer const& memberType = member.type;
+diff --git a/libsolidity/formal/Why3Translator.cpp b/libsolidity/formal/Why3Translator.cpp
+index 14b324e0..5028e2c3 100644
+--- a/libsolidity/formal/Why3Translator.cpp
++++ b/libsolidity/formal/Why3Translator.cpp
+@@ -21,6 +21,7 @@
+  */
+ 
+ #include <libsolidity/formal/Why3Translator.h>
++#include <boost/algorithm/string/predicate.hpp>
+ 
+ using namespace std;
+ using namespace dev;
+@@ -30,12 +31,10 @@ bool Why3Translator::process(SourceUnit const& _source)
+ {
+ 	try
+ 	{
+-		m_indentation = 0;
+-		if (!m_result.empty())
++		if (m_lines.size() != 1 || !m_lines.back().contents.empty())
+ 			fatalError(_source, "Multiple source units not yet supported");
+ 		appendPreface();
+ 		_source.accept(*this);
+-		addLine("end");
+ 	}
+ 	catch (FatalError& _e)
+ 	{
+@@ -44,6 +43,14 @@ bool Why3Translator::process(SourceUnit const& _source)
+ 	return !m_errorOccured;
+ }
+ 
++string Why3Translator::translation() const
++{
++	string result;
++	for (auto const& line: m_lines)
++		result += string(line.indentation, '\t') + line.contents + "\n";
++	return result;
++}
++
+ void Why3Translator::error(ASTNode const& _node, string const& _description)
+ {
+ 	auto err = make_shared<Error>(Error::Type::Why3TranslatorError);
+@@ -62,7 +69,7 @@ void Why3Translator::fatalError(ASTNode const& _node, string const& _description
+ 
+ void Why3Translator::appendPreface()
+ {
+-	m_result += R"(
++	m_lines.push_back(Line{R"(
+ module UInt256
+ 	use import mach.int.Unsigned
+ 	type uint256
+@@ -71,19 +78,7 @@ module UInt256
+ 		type t = uint256,
+ 		constant max = max_uint256
+ end
+-
+-module Solidity
+-use import int.Int
+-use import ref.Ref
+-use import map.Map
+-use import array.Array
+-use import int.ComputerDivision
+-use import mach.int.Unsigned
+-use import UInt256
+-
+-exception Ret
+-type state = StateUnused
+-)";
++)", 0});
+ }
+ 
+ string Why3Translator::toFormalType(Type const& _type) const
+@@ -113,28 +108,20 @@ void Why3Translator::addLine(string const& _line)
+ 
+ void Why3Translator::add(string const& _str)
+ {
+-	if (m_currentLine.empty())
+-		m_indentationAtLineStart = m_indentation;
+-	m_currentLine += _str;
++	m_lines.back().contents += _str;
+ }
+ 
+ void Why3Translator::newLine()
+ {
+-	if (!m_currentLine.empty())
+-	{
+-		for (size_t i = 0; i < m_indentationAtLineStart; ++i)
+-			m_result.push_back('\t');
+-		m_result += m_currentLine;
+-		m_result.push_back('\n');
+-		m_currentLine.clear();
+-	}
++	if (!m_lines.back().contents.empty())
++		m_lines.push_back({"", m_lines.back().indentation});
+ }
+ 
+ void Why3Translator::unindent()
+ {
+ 	newLine();
+-	solAssert(m_indentation > 0, "");
+-	m_indentation--;
++	solAssert(m_lines.back().indentation > 0, "");
++	m_lines.back().indentation--;
+ }
+ 
+ bool Why3Translator::visit(ContractDefinition const& _contract)
+@@ -145,9 +132,52 @@ bool Why3Translator::visit(ContractDefinition const& _contract)
+ 	if (_contract.isLibrary())
+ 		error(_contract, "Libraries not supported.");
+ 
+-	addSourceFromDocStrings(_contract.annotation());
++	addLine("module Contract_" + _contract.name());
++	indent();
++	addLine("use import int.Int");
++	addLine("use import ref.Ref");
++	addLine("use import map.Map");
++	addLine("use import array.Array");
++	addLine("use import int.ComputerDivision");
++	addLine("use import mach.int.Unsigned");
++	addLine("use import UInt256");
++	addLine("exception Ret");
++
++	addLine("type state = {");
++	indent();
++	m_stateVariables = _contract.stateVariables();
++	for (VariableDeclaration const* variable: m_stateVariables)
++	{
++		string varType = toFormalType(*variable->annotation().type);
++		if (varType.empty())
++			fatalError(*variable, "Type not supported.");
++		addLine("mutable _" + variable->name() + ": ref " + varType);
++	}
++	unindent();
++	addLine("}");
+ 
+-	return true;
++	if (!_contract.baseContracts().empty())
++		error(*_contract.baseContracts().front(), "Inheritance not supported.");
++	if (!_contract.definedStructs().empty())
++		error(*_contract.definedStructs().front(), "User-defined types not supported.");
++	if (!_contract.definedEnums().empty())
++		error(*_contract.definedEnums().front(), "User-defined types not supported.");
++	if (!_contract.events().empty())
++		error(*_contract.events().front(), "Events not supported.");
++	if (!_contract.functionModifiers().empty())
++		error(*_contract.functionModifiers().front(), "Modifiers not supported.");
++
++	ASTNode::listAccept(_contract.definedFunctions(), *this);
++
++	return false;
++}
++
++void Why3Translator::endVisit(ContractDefinition const& _contract)
++{
++	m_stateVariables.clear();
++	addSourceFromDocStrings(_contract.annotation());
++	unindent();
++	addLine("end");
+ }
+ 
+ bool Why3Translator::visit(FunctionDefinition const& _function)
+@@ -168,6 +198,14 @@ bool Why3Translator::visit(FunctionDefinition const& _function)
+ 		return false;
+ 	}
+ 
++	m_localVariables.clear();
++	for (auto const& var: _function.parameters())
++		m_localVariables[var->name()] = var.get();
++	for (auto const& var: _function.returnParameters())
++		m_localVariables[var->name()] = var.get();
++	for (auto const& var: _function.localVariables())
++		m_localVariables[var->name()] = var;
++
+ 	add("let rec _" + _function.name());
+ 	add(" (state: state)");
+ 	for (auto const& param: _function.parameters())
+@@ -238,6 +276,11 @@ bool Why3Translator::visit(FunctionDefinition const& _function)
+ 	return false;
+ }
+ 
++void Why3Translator::endVisit(FunctionDefinition const&)
++{
++	m_localVariables.clear();
++}
++
+ bool Why3Translator::visit(Block const& _node)
+ {
+ 	addSourceFromDocStrings(_node.annotation());
+@@ -246,8 +289,14 @@ bool Why3Translator::visit(Block const& _node)
+ 	for (size_t i = 0; i < _node.statements().size(); ++i)
+ 	{
+ 		_node.statements()[i]->accept(*this);
+-		if (!m_currentLine.empty() && i != _node.statements().size() - 1)
+-			add(";");
++		if (i != _node.statements().size() - 1)
++		{
++			auto it = m_lines.end() - 1;
++			while (it != m_lines.begin() && it->contents.empty())
++				--it;
++			if (!boost::algorithm::ends_with(it->contents, "begin"))
++				it->contents += ";";
++		}
+ 		newLine();
+ 	}
+ 	unindent();
+@@ -422,29 +471,48 @@ bool Why3Translator::visit(FunctionCall const& _node)
+ 		return true;
+ 	}
+ 	FunctionType const& function = dynamic_cast<FunctionType const&>(*_node.expression().annotation().type);
+-	if (function.location() != FunctionType::Location::Internal)
++	switch (function.location())
+ 	{
+-		error(_node, "Only internal function calls supported.");
+-		return true;
+-	}
+-	if (!_node.names().empty())
++	case FunctionType::Location::AddMod:
++	case FunctionType::Location::MulMod:
+ 	{
+-		error(_node, "Function calls with named arguments not supported.");
+-		return true;
++		//@todo require that third parameter is not zero
++		add("(of_int (mod (Int.(");
++		add(function.location() == FunctionType::Location::AddMod ? "+" : "*");
++		add(") (to_int ");
++		_node.arguments().at(0)->accept(*this);
++		add(") (to_int ");
++		_node.arguments().at(1)->accept(*this);
++		add(")) (to_int ");
++		_node.arguments().at(2)->accept(*this);
++		add(")))");
++		return false;
+ 	}
++	case FunctionType::Location::Internal:
++	{
++		if (!_node.names().empty())
++		{
++			error(_node, "Function calls with named arguments not supported.");
++			return true;
++		}
+ 
+-	//@TODO check type conversions
++		//@TODO check type conversions
+ 
+-	add("(");
+-	_node.expression().accept(*this);
+-	add(" StateUnused");
+-	for (auto const& arg: _node.arguments())
+-	{
+-		add(" ");
+-		arg->accept(*this);
++		add("(");
++		_node.expression().accept(*this);
++		add(" state");
++		for (auto const& arg: _node.arguments())
++		{
++			add(" ");
++			arg->accept(*this);
++		}
++		add(")");
++		return false;
++	}
++	default:
++		error(_node, "Only internal function calls supported.");
++		return true;
+ 	}
+-	add(")");
+-	return false;
+ }
+ 
+ bool Why3Translator::visit(MemberAccess const& _node)
+@@ -495,10 +563,15 @@ bool Why3Translator::visit(Identifier const& _identifier)
+ 		add("_" + functionDef->name());
+ 	else if (auto variable = dynamic_cast<VariableDeclaration const*>(declaration))
+ 	{
+-		if (_identifier.annotation().lValueRequested)
+-			add("_" + variable->name());
+-		else
+-			add("!_" + variable->name());
++		bool isStateVar = isStateVariable(variable);
++		bool lvalue = _identifier.annotation().lValueRequested;
++		if (!lvalue)
++			add("!(");
++		if (isStateVar)
++			add("state.");
++		add("_" + variable->name());
++		if (!lvalue)
++			add(")");
+ 	}
+ 	else
+ 		error(_identifier, "Not supported.");
+@@ -525,6 +598,32 @@ bool Why3Translator::visit(Literal const& _literal)
+ 	return false;
+ }
+ 
++bool Why3Translator::isStateVariable(VariableDeclaration const* _var) const
++{
++	return contains(m_stateVariables, _var);
++}
++
++bool Why3Translator::isStateVariable(string const& _name) const
++{
++	for (auto const& var: m_stateVariables)
++		if (var->name() == _name)
++			return true;
++	return false;
++}
++
++bool Why3Translator::isLocalVariable(VariableDeclaration const* _var) const
++{
++	for (auto const& var: m_localVariables)
++		if (var.second == _var)
++			return true;
++	return false;
++}
++
++bool Why3Translator::isLocalVariable(string const& _name) const
++{
++	return m_localVariables.count(_name);
++}
++
+ void Why3Translator::visitIndentedUnlessBlock(Statement const& _statement)
+ {
+ 	bool isBlock = !!dynamic_cast<Block const*>(&_statement);
+@@ -543,5 +642,40 @@ void Why3Translator::addSourceFromDocStrings(DocumentedAnnotation const& _annota
+ {
+ 	auto why3Range = _annotation.docTags.equal_range("why3");
+ 	for (auto i = why3Range.first; i != why3Range.second; ++i)
+-		addLine(i->second.content);
++		addLine(transformVariableReferences(i->second.content));
+ }
++
++string Why3Translator::transformVariableReferences(string const& _annotation)
++{
++	string ret;
++	auto pos = _annotation.begin();
++	while (true)
++	{
++		auto hash = find(pos, _annotation.end(), '#');
++		ret.append(pos, hash);
++		if (hash == _annotation.end())
++			break;
++
++		auto hashEnd = find_if(hash + 1, _annotation.end(), [](char _c)
++		{
++			return
++				(_c != '_' && _c != '$') &&
++				!('a' <= _c && _c <= 'z') &&
++				!('A' <= _c && _c <= 'Z') &&
++				!('0' <= _c && _c <= '9');
++		});
++		string varName(hash + 1, hashEnd);
++		if (isLocalVariable(varName))
++			ret += "(to_int !_" + varName + ")";
++		else if (isStateVariable(varName))
++			ret += "(to_int !(state._" + varName + "))";
++		else if (varName == "result") //@todo actually use the name of the return parameters
++			ret += "(to_int result)";
++		else
++			ret.append(hash, hashEnd);
++
++		pos = hashEnd;
++	}
++	return ret;
++}
++
+diff --git a/libsolidity/formal/Why3Translator.h b/libsolidity/formal/Why3Translator.h
+index 1aa46424..f4315a7a 100644
+--- a/libsolidity/formal/Why3Translator.h
++++ b/libsolidity/formal/Why3Translator.h
+@@ -43,13 +43,13 @@ class SourceUnit;
+ class Why3Translator: private ASTConstVisitor
+ {
+ public:
+-	Why3Translator(ErrorList& _errors): m_errors(_errors) {}
++	Why3Translator(ErrorList& _errors): m_lines(std::vector<Line>{{std::string(), 0}}), m_errors(_errors) {}
+ 
+ 	/// Appends formalisation of the given source unit to the output.
+ 	/// @returns false on error.
+ 	bool process(SourceUnit const& _source);
+ 
+-	std::string translation() const { return m_result; }
++	std::string translation() const;
+ 
+ private:
+ 	/// Returns an error.
+@@ -64,15 +64,18 @@ private:
+ 	/// if the type is not supported.
+ 	std::string toFormalType(Type const& _type) const;
+ 
+-	void indent() { newLine(); m_indentation++; }
++	void indent() { newLine(); m_lines.back().indentation++; }
+ 	void unindent();
+ 	void addLine(std::string const& _line);
+ 	void add(std::string const& _str);
+ 	void newLine();
++	void appendSemicolon();
+ 
+ 	virtual bool visit(SourceUnit const&) override { return true; }
+ 	virtual bool visit(ContractDefinition const& _contract) override;
++	virtual void endVisit(ContractDefinition const& _contract) override;
+ 	virtual bool visit(FunctionDefinition const& _function) override;
++	virtual void endVisit(FunctionDefinition const& _function) override;
+ 	virtual bool visit(Block const&) override;
+ 	virtual bool visit(IfStatement const& _node) override;
+ 	virtual bool visit(WhileStatement const& _node) override;
+@@ -96,20 +99,33 @@ private:
+ 		return false;
+ 	}
+ 
++	bool isStateVariable(VariableDeclaration const* _var) const;
++	bool isStateVariable(std::string const& _name) const;
++	bool isLocalVariable(VariableDeclaration const* _var) const;
++	bool isLocalVariable(std::string const& _name) const;
++
+ 	/// Visits the givin statement and indents it unless it is a block
+ 	/// (which does its own indentation).
+ 	void visitIndentedUnlessBlock(Statement const& _statement);
+ 
+ 	void addSourceFromDocStrings(DocumentedAnnotation const& _annotation);
++	/// Transforms substring like `#varName` and `#stateVarName` to code that evaluates to their value.
++	std::string transformVariableReferences(std::string const& _annotation);
+ 
+-	size_t m_indentationAtLineStart = 0;
+-	size_t m_indentation = 0;
+-	std::string m_currentLine;
+ 	/// True if we have already seen a contract. For now, only a single contract
+ 	/// is supported.
+ 	bool m_seenContract = false;
+ 	bool m_errorOccured = false;
+-	std::string m_result;
++
++	std::vector<VariableDeclaration const*> m_stateVariables;
++	std::map<std::string, VariableDeclaration const*> m_localVariables;
++
++	struct Line
++	{
++		std::string contents;
++		unsigned indentation;
++	};
++	std::vector<Line> m_lines;
+ 	ErrorList& m_errors;
+ };
+ 
+diff --git a/libsolidity/interface/InterfaceHandler.cpp b/libsolidity/interface/InterfaceHandler.cpp
+index 30cd9724..e254137f 100644
+--- a/libsolidity/interface/InterfaceHandler.cpp
++++ b/libsolidity/interface/InterfaceHandler.cpp
+@@ -120,7 +120,7 @@ string InterfaceHandler::ABISolidityInterface(ContractDefinition const& _contrac
+ 		{
+ 			ret += "struct " + stru->name() + "{";
+ 			for (ASTPointer<VariableDeclaration> const& _member: stru->members())
+-				ret += _member->type(nullptr)->canonicalName(false) + " " + _member->name() + ";";
++				ret += _member->type()->canonicalName(false) + " " + _member->name() + ";";
+ 			ret += "}";
+ 		}
+ 		for (auto const& enu: _contractDef.definedEnums())
+diff --git a/libsolidity/parsing/Parser.cpp b/libsolidity/parsing/Parser.cpp
+index d89218bb..2b886121 100644
+--- a/libsolidity/parsing/Parser.cpp
++++ b/libsolidity/parsing/Parser.cpp
+@@ -88,7 +88,7 @@ ASTPointer<SourceUnit> Parser::parse(shared_ptr<Scanner> const& _scanner)
+ 		}
+ 		return nodeFactory.createNode<SourceUnit>(nodes);
+ 	}
+-	catch (FatalError const& _error)
++	catch (FatalError const&)
+ 	{
+ 		if (m_errors.empty())
+ 			throw; // Something is weird here, rather throw again.
+@@ -132,12 +132,6 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition(bool _isLibrary)
+ 	expectToken(_isLibrary ? Token::Library : Token::Contract);
+ 	ASTPointer<ASTString> name = expectIdentifierToken();
+ 	vector<ASTPointer<InheritanceSpecifier>> baseContracts;
+-	vector<ASTPointer<StructDefinition>> structs;
+-	vector<ASTPointer<EnumDefinition>> enums;
+-	vector<ASTPointer<VariableDeclaration>> stateVariables;
+-	vector<ASTPointer<FunctionDefinition>> functions;
+-	vector<ASTPointer<ModifierDefinition>> modifiers;
+-	vector<ASTPointer<EventDefinition>> events;
+ 	if (m_scanner->currentToken() == Token::Is)
+ 		do
+ 		{
+@@ -145,6 +139,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition(bool _isLibrary)
+ 			baseContracts.push_back(parseInheritanceSpecifier());
+ 		}
+ 		while (m_scanner->currentToken() == Token::Comma);
++	vector<ASTPointer<ASTNode>> subNodes;
+ 	expectToken(Token::LBrace);
+ 	while (true)
+ 	{
+@@ -152,11 +147,11 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition(bool _isLibrary)
+ 		if (currentTokenValue == Token::RBrace)
+ 			break;
+ 		else if (currentTokenValue == Token::Function)
+-			functions.push_back(parseFunctionDefinition(name.get()));
++			subNodes.push_back(parseFunctionDefinition(name.get()));
+ 		else if (currentTokenValue == Token::Struct)
+-			structs.push_back(parseStructDefinition());
++			subNodes.push_back(parseStructDefinition());
+ 		else if (currentTokenValue == Token::Enum)
+-			enums.push_back(parseEnumDefinition());
++			subNodes.push_back(parseEnumDefinition());
+ 		else if (
+ 			currentTokenValue == Token::Identifier ||
+ 			currentTokenValue == Token::Mapping ||
+@@ -166,13 +161,15 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition(bool _isLibrary)
+ 			VarDeclParserOptions options;
+ 			options.isStateVariable = true;
+ 			options.allowInitialValue = true;
+-			stateVariables.push_back(parseVariableDeclaration(options));
++			subNodes.push_back(parseVariableDeclaration(options));
+ 			expectToken(Token::Semicolon);
+ 		}
+ 		else if (currentTokenValue == Token::Modifier)
+-			modifiers.push_back(parseModifierDefinition());
++			subNodes.push_back(parseModifierDefinition());
+ 		else if (currentTokenValue == Token::Event)
+-			events.push_back(parseEventDefinition());
++			subNodes.push_back(parseEventDefinition());
++		else if (currentTokenValue == Token::Using)
++			subNodes.push_back(parseUsingDirective());
+ 		else
+ 			fatalParserError(std::string("Function, variable, struct or modifier declaration expected."));
+ 	}
+@@ -182,12 +179,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition(bool _isLibrary)
+ 		name,
+ 		docString,
+ 		baseContracts,
+-		structs,
+-		enums,
+-		stateVariables,
+-		functions,
+-		modifiers,
+-		events,
++		subNodes,
+ 		_isLibrary
+ 	);
+ }
+@@ -485,6 +477,24 @@ ASTPointer<EventDefinition> Parser::parseEventDefinition()
+ 	return nodeFactory.createNode<EventDefinition>(name, docstring, parameters, anonymous);
+ }
+ 
++ASTPointer<UsingForDirective> Parser::parseUsingDirective()
++{
++	ASTNodeFactory nodeFactory(*this);
++
++	expectToken(Token::Using);
++	//@todo this should actually parse a full path.
++	ASTPointer<Identifier> library(parseIdentifier());
++	ASTPointer<TypeName> typeName;
++	expectToken(Token::For);
++	if (m_scanner->currentToken() == Token::Mul)
++		m_scanner->next();
++	else
++		typeName = parseTypeName(false);
++	nodeFactory.markEndPosition();
++	expectToken(Token::Semicolon);
++	return nodeFactory.createNode<UsingForDirective>(library, typeName);
++}
++
+ ASTPointer<ModifierInvocation> Parser::parseModifierInvocation()
+ {
+ 	ASTNodeFactory nodeFactory(*this);
+@@ -939,7 +949,7 @@ ASTPointer<Expression> Parser::parseLeftHandSideExpression(
+ 	else if (m_scanner->currentToken() == Token::New)
+ 	{
+ 		expectToken(Token::New);
+-		ASTPointer<Identifier> contractName(parseIdentifier());
++		ASTPointer<TypeName> contractName(parseTypeName(false));
+ 		nodeFactory.setEndPositionFromNode(contractName);
+ 		expression = nodeFactory.createNode<NewExpression>(contractName);
+ 	}
+diff --git a/libsolidity/parsing/Parser.h b/libsolidity/parsing/Parser.h
+index 663c0f92..5ff46242 100644
+--- a/libsolidity/parsing/Parser.h
++++ b/libsolidity/parsing/Parser.h
+@@ -74,6 +74,7 @@ private:
+ 	);
+ 	ASTPointer<ModifierDefinition> parseModifierDefinition();
+ 	ASTPointer<EventDefinition> parseEventDefinition();
++	ASTPointer<UsingForDirective> parseUsingDirective();
+ 	ASTPointer<ModifierInvocation> parseModifierInvocation();
+ 	ASTPointer<Identifier> parseIdentifier();
+ 	ASTPointer<TypeName> parseTypeName(bool _allowVar);
+diff --git a/solc/CommandLineInterface.cpp b/solc/CommandLineInterface.cpp
+index b4121574..376196e1 100644
+--- a/solc/CommandLineInterface.cpp
++++ b/solc/CommandLineInterface.cpp
+@@ -34,7 +34,6 @@
+ #include <libdevcore/CommonData.h>
+ #include <libdevcore/CommonIO.h>
+ #include <libevmcore/Instruction.h>
+-#include <libevmcore/Params.h>
+ #include <libsolidity/interface/Version.h>
+ #include <libsolidity/parsing/Scanner.h>
+ #include <libsolidity/parsing/Parser.h>
+@@ -239,6 +238,7 @@ void CommandLineInterface::handleMeta(DocumentationType _type, string const& _co
+ 
+ void CommandLineInterface::handleGasEstimation(string const& _contract)
+ {
++	eth::EVMSchedule schedule;	// TODO: make it relevant to the SealEngine/EnvInfo.
+ 	using Gas = GasEstimator::GasConsumption;
+ 	if (!m_compiler->assemblyItems(_contract) && !m_compiler->runtimeAssemblyItems(_contract))
+ 		return;
+@@ -248,8 +248,8 @@ void CommandLineInterface::handleGasEstimation(string const& _contract)
+ 		Gas gas = GasEstimator::functionalEstimation(*items);
+ 		u256 bytecodeSize(m_compiler->runtimeObject(_contract).bytecode.size());
+ 		cout << "construction:" << endl;
+-		cout << "   " << gas << " + " << (bytecodeSize * eth::c_createDataGas) << " = ";
+-		gas += bytecodeSize * eth::c_createDataGas;
++		cout << "   " << gas << " + " << (bytecodeSize * schedule.createDataGas) << " = ";
++		gas += bytecodeSize * schedule.createDataGas;
+ 		cout << gas << endl;
+ 	}
+ 	if (eth::AssemblyItems const* items = m_compiler->runtimeAssemblyItems(_contract))
+diff --git a/solc/jsonCompiler.cpp b/solc/jsonCompiler.cpp
+index 43164807..cb3eeefd 100644
+--- a/solc/jsonCompiler.cpp
++++ b/solc/jsonCompiler.cpp
+@@ -27,7 +27,6 @@
+ #include <libdevcore/CommonData.h>
+ #include <libdevcore/CommonIO.h>
+ #include <libevmcore/Instruction.h>
+-#include <libevmcore/Params.h>
+ #include <libsolidity/parsing/Scanner.h>
+ #include <libsolidity/parsing/Parser.h>
+ #include <libsolidity/ast/ASTPrinter.h>
+@@ -67,6 +66,7 @@ Json::Value gasToJson(GasEstimator::GasConsumption const& _gas)
+ 
+ Json::Value estimateGas(CompilerStack const& _compiler, string const& _contract)
+ {
++	eth::EVMSchedule schedule;// TODO: make relevant to supposed context.
+ 	Json::Value gasEstimates(Json::objectValue);
+ 	using Gas = GasEstimator::GasConsumption;
+ 	if (!_compiler.assemblyItems(_contract) && !_compiler.runtimeAssemblyItems(_contract))
+@@ -77,7 +77,7 @@ Json::Value estimateGas(CompilerStack const& _compiler, string const& _contract)
+ 		u256 bytecodeSize(_compiler.runtimeObject(_contract).bytecode.size());
+ 		Json::Value creationGas(Json::arrayValue);
+ 		creationGas[0] = gasToJson(gas);
+-		creationGas[1] = gasToJson(bytecodeSize * eth::c_createDataGas);
++		creationGas[1] = gasToJson(bytecodeSize * schedule.createDataGas);
+ 		gasEstimates["creation"] = creationGas;
+ 	}
+ 	if (eth::AssemblyItems const* items = _compiler.runtimeAssemblyItems(_contract))
+diff --git a/test/contracts/Wallet.cpp b/test/contracts/Wallet.cpp
+index 4a4848f1..476e817b 100644
+--- a/test/contracts/Wallet.cpp
++++ b/test/contracts/Wallet.cpp
+@@ -361,9 +361,9 @@ contract Wallet is multisig, multiowned, daylimit {
+ 			multiowned(_owners, _required) daylimit(_daylimit) {
+ 	}
+ 
+-	// kills the contract sending everything to `_to`.
++	// destroys the contract sending everything to `_to`.
+ 	function kill(address _to) onlymanyowners(sha3(msg.data)) external {
+-		suicide(_to);
++		selfdestruct(_to);
+ 	}
+ 
+ 	// gets called when no other function matches
+diff --git a/test/libsolidity/GasMeter.cpp b/test/libsolidity/GasMeter.cpp
+index b5cee01e..25df9e4d 100644
+--- a/test/libsolidity/GasMeter.cpp
++++ b/test/libsolidity/GasMeter.cpp
+@@ -59,12 +59,14 @@ public:
+ 
+ 	void testCreationTimeGas(string const& _sourceCode)
+ 	{
++		EVMSchedule schedule;// TODO: make relevant to supposed context.
++
+ 		compileAndRun(_sourceCode);
+ 		auto state = make_shared<KnownState>();
+ 		PathGasMeter meter(*m_compiler.assemblyItems());
+ 		GasMeter::GasConsumption gas = meter.estimateMax(0, state);
+ 		u256 bytecodeSize(m_compiler.runtimeObject().bytecode.size());
+-		gas += bytecodeSize * c_createDataGas;
++		gas += bytecodeSize * schedule.createDataGas;
+ 		BOOST_REQUIRE(!gas.isInfinite);
+ 		BOOST_CHECK(gas.value == m_gasUsed);
+ 	}
+diff --git a/test/libsolidity/SolidityEndToEndTest.cpp b/test/libsolidity/SolidityEndToEndTest.cpp
+index 81543356..f625f533 100644
+--- a/test/libsolidity/SolidityEndToEndTest.cpp
++++ b/test/libsolidity/SolidityEndToEndTest.cpp
+@@ -1151,7 +1151,7 @@ BOOST_AUTO_TEST_CASE(blockchain)
+ 							 "    blockNumber = block.number;\n"
+ 							 "  }\n"
+ 							 "}\n";
+-	m_envInfo.setBeneficiary(Address(0x123));
++	m_envInfo.setAuthor(Address(0x123));
+ 	m_envInfo.setNumber(7);
+ 	compileAndRun(sourceCode, 27);
+ 	BOOST_CHECK(callContractFunctionWithValue("someInfo()", 28) == encodeArgs(28, 0x123, 7));
+@@ -1483,6 +1483,22 @@ BOOST_AUTO_TEST_CASE(suicide)
+ 	BOOST_CHECK_EQUAL(m_state.balance(address), amount);
+ }
+ 
++BOOST_AUTO_TEST_CASE(selfdestruct)
++{
++	char const* sourceCode = "contract test {\n"
++							 "  function a(address receiver) returns (uint ret) {\n"
++							 "    selfdestruct(receiver);\n"
++							 "    return 10;\n"
++							 "  }\n"
++							 "}\n";
++	u256 amount(130);
++	compileAndRun(sourceCode, amount);
++	u160 address(23);
++	BOOST_CHECK(callContractFunction("a(address)", address) == bytes());
++	BOOST_CHECK(!m_state.addressHasCode(m_contractAddress));
++	BOOST_CHECK_EQUAL(m_state.balance(address), amount);
++}
++
+ BOOST_AUTO_TEST_CASE(sha3)
+ {
+ 	char const* sourceCode = "contract test {\n"
+@@ -1955,7 +1971,7 @@ BOOST_AUTO_TEST_CASE(value_for_constructor)
+ 		contract Main {
+ 			Helper h;
+ 			function Main() {
+-				h = new Helper.value(10)("abc", true);
++				h = (new Helper).value(10)("abc", true);
+ 			}
+ 			function getFlag() returns (bool ret) { return h.getFlag(); }
+ 			function getName() returns (bytes3 ret) { return h.getName(); }
+@@ -4671,6 +4687,23 @@ BOOST_AUTO_TEST_CASE(arrays_in_constructors)
+ 	);
+ }
+ 
++BOOST_AUTO_TEST_CASE(fixed_arrays_in_constructors)
++{
++	char const* sourceCode = R"(
++		contract Creator {
++			uint public r;
++			address public ch;
++			function Creator(address[3] s, uint x) {
++				r = x;
++				ch = s[2];
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "Creator", encodeArgs(u256(1), u256(2), u256(3), u256(4)));
++	BOOST_REQUIRE(callContractFunction("r()") == encodeArgs(u256(4)));
++	BOOST_REQUIRE(callContractFunction("ch()") == encodeArgs(u256(3)));
++}
++
+ BOOST_AUTO_TEST_CASE(arrays_from_and_to_storage)
+ {
+ 	char const* sourceCode = R"(
+@@ -5625,7 +5658,7 @@ BOOST_AUTO_TEST_CASE(version_stamp_for_libraries)
+ 	bytes runtimeCode = compileAndRun(sourceCode, 0, "lib");
+ 	BOOST_CHECK(runtimeCode.size() >= 8);
+ 	BOOST_CHECK_EQUAL(runtimeCode[0], int(eth::Instruction::PUSH6)); // might change once we switch to 1.x.x
+-	BOOST_CHECK_EQUAL(runtimeCode[1], 1); // might change once we switch away from x.1.x
++	BOOST_CHECK_EQUAL(runtimeCode[1], 2); // might change once we switch away from x.2.x
+ 	BOOST_CHECK_EQUAL(runtimeCode[7], int(eth::Instruction::POP));
+ }
+ 
+@@ -5816,6 +5849,50 @@ BOOST_AUTO_TEST_CASE(lone_struct_array_type)
+ 	BOOST_CHECK(callContractFunction("f()") == encodeArgs(u256(3)));
+ }
+ 
++BOOST_AUTO_TEST_CASE(create_memory_array)
++{
++	char const* sourceCode = R"(
++		contract C {
++			struct S { uint[2] a; bytes b; }
++			function f() returns (byte, uint, uint, byte) {
++				var x = new bytes(200);
++				x[199] = 'A';
++				var y = new uint[2][](300);
++				y[203][1] = 8;
++				var z = new S[](180);
++				z[170].a[1] = 4;
++				z[170].b = new bytes(102);
++				z[170].b[99] = 'B';
++				return (x[199], y[203][1], z[170].a[1], z[170].b[99]);
++			}
++		}
++	)";
++	compileAndRun(sourceCode);
++	BOOST_CHECK(callContractFunction("f()") == encodeArgs(string("A"), u256(8), u256(4), string("B")));
++}
++
++BOOST_AUTO_TEST_CASE(memory_arrays_of_various_sizes)
++{
++	// Computes binomial coefficients the chinese way
++	char const* sourceCode = R"(
++		contract C {
++			function f(uint n, uint k) returns (uint) {
++				uint[][] memory rows = new uint[][](n + 1);
++				for (uint i = 1; i <= n; i++) {
++					rows[i] = new uint[](i);
++					rows[i][0] = rows[i][rows[i].length - 1] = 1;
++					for (uint j = 1; j < i - 1; j++)
++						rows[i][j] = rows[i - 1][j - 1] + rows[i - 1][j];
++				}
++				return rows[n][k - 1];
++			}
++		}
++	)";
++	compileAndRun(sourceCode);
++	BOOST_CHECK(callContractFunction("f(uint256,uint256)", encodeArgs(u256(3), u256(1))) == encodeArgs(u256(1)));
++	BOOST_CHECK(callContractFunction("f(uint256,uint256)", encodeArgs(u256(9), u256(5))) == encodeArgs(u256(70)));
++}
++
+ BOOST_AUTO_TEST_CASE(memory_overwrite)
+ {
+ 	char const* sourceCode = R"(
+@@ -5831,6 +5908,175 @@ BOOST_AUTO_TEST_CASE(memory_overwrite)
+ 	BOOST_CHECK(callContractFunction("f()") == encodeDyn(string("b23a5")));
+ }
+ 
++BOOST_AUTO_TEST_CASE(addmod_mulmod)
++{
++	char const* sourceCode = R"(
++		contract C {
++			function test() returns (uint) {
++				// Note that this only works because computation on literals is done using
++				// unbounded integers.
++				if ((2**255 + 2**255) % 7 != addmod(2**255, 2**255, 7))
++					return 1;
++				if ((2**255 + 2**255) % 7 != addmod(2**255, 2**255, 7))
++					return 2;
++				return 0;
++			}
++		}
++	)";
++	compileAndRun(sourceCode);
++	BOOST_CHECK(callContractFunction("test()") == encodeArgs(u256(0)));
++}
++
++BOOST_AUTO_TEST_CASE(string_allocation_bug)
++{
++	char const* sourceCode = R"(
++		contract Sample
++		{
++			struct s { uint16 x; uint16 y; string a; string b;}
++			s[2] public p;
++			function Sample() {
++				s memory m;
++				m.x = 0xbbbb;
++				m.y = 0xcccc;
++				m.a = "hello";
++				m.b = "world";
++				p[0] = m;
++			}
++		}
++	)";
++	compileAndRun(sourceCode);
++	BOOST_CHECK(callContractFunction("p(uint256)") == encodeArgs(
++		u256(0xbbbb),
++		u256(0xcccc),
++		u256(0x80),
++		u256(0xc0),
++		u256(5),
++		string("hello"),
++		u256(5),
++		string("world")
++	));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_function_on_int)
++{
++	char const* sourceCode = R"(
++		library D { function double(uint self) returns (uint) { return 2*self; } }
++		contract C {
++			using D for uint;
++			function f(uint a) returns (uint) {
++				return a.double();
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "D");
++	compileAndRun(sourceCode, 0, "C", bytes(), map<string, Address>{{"D", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f(uint256)", u256(9)) == encodeArgs(u256(2 * 9)));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_function_on_struct)
++{
++	char const* sourceCode = R"(
++		library D { struct s { uint a; } function mul(s storage self, uint x) returns (uint) { return self.a *= x; } }
++		contract C {
++			using D for D.s;
++			D.s public x;
++			function f(uint a) returns (uint) {
++				x.a = 3;
++				return x.mul(a);
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "D");
++	compileAndRun(sourceCode, 0, "C", bytes(), map<string, Address>{{"D", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f(uint256)", u256(7)) == encodeArgs(u256(3 * 7)));
++	BOOST_CHECK(callContractFunction("x()") == encodeArgs(u256(3 * 7)));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_overload)
++{
++	char const* sourceCode = R"(
++		library D {
++			struct s { uint a; }
++			function mul(s storage self, uint x) returns (uint) { return self.a *= x; }
++			function mul(s storage self, bytes32 x) returns (bytes32) { }
++		}
++		contract C {
++			using D for D.s;
++			D.s public x;
++			function f(uint a) returns (uint) {
++				x.a = 6;
++				return x.mul(a);
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "D");
++	compileAndRun(sourceCode, 0, "C", bytes(), map<string, Address>{{"D", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f(uint256)", u256(7)) == encodeArgs(u256(6 * 7)));
++	BOOST_CHECK(callContractFunction("x()") == encodeArgs(u256(6 * 7)));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_by_name)
++{
++	char const* sourceCode = R"(
++		library D { struct s { uint a; } function mul(s storage self, uint x) returns (uint) { return self.a *= x; } }
++		contract C {
++			using D for D.s;
++			D.s public x;
++			function f(uint a) returns (uint) {
++				x.a = 6;
++				return x.mul({x: a});
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "D");
++	compileAndRun(sourceCode, 0, "C", bytes(), map<string, Address>{{"D", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f(uint256)", u256(7)) == encodeArgs(u256(6 * 7)));
++	BOOST_CHECK(callContractFunction("x()") == encodeArgs(u256(6 * 7)));
++}
++
++BOOST_AUTO_TEST_CASE(bound_function_in_var)
++{
++	char const* sourceCode = R"(
++		library D { struct s { uint a; } function mul(s storage self, uint x) returns (uint) { return self.a *= x; } }
++		contract C {
++			using D for D.s;
++			D.s public x;
++			function f(uint a) returns (uint) {
++				x.a = 6;
++				var g = x.mul;
++				return g({x: a});
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "D");
++	compileAndRun(sourceCode, 0, "C", bytes(), map<string, Address>{{"D", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f(uint256)", u256(7)) == encodeArgs(u256(6 * 7)));
++	BOOST_CHECK(callContractFunction("x()") == encodeArgs(u256(6 * 7)));
++}
++
++BOOST_AUTO_TEST_CASE(bound_function_to_string)
++{
++	char const* sourceCode = R"(
++		library D { function length(string memory self) returns (uint) { return bytes(self).length; } }
++		contract C {
++			using D for string;
++			string x;
++			function f() returns (uint) {
++				x = "abc";
++				return x.length();
++			}
++			function g() returns (uint) {
++				string memory s = "abc";
++				return s.length();
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "D");
++	compileAndRun(sourceCode, 0, "C", bytes(), map<string, Address>{{"D", m_contractAddress}});
++	BOOST_CHECK(callContractFunction("f()") == encodeArgs(u256(3)));
++	BOOST_CHECK(callContractFunction("g()") == encodeArgs(u256(3)));
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityNameAndTypeResolution.cpp b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+index e87e47a8..73a9b660 100644
+--- a/test/libsolidity/SolidityNameAndTypeResolution.cpp
++++ b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+@@ -2529,6 +2529,220 @@ BOOST_AUTO_TEST_CASE(member_access_parser_ambiguity)
+ 	BOOST_CHECK(success(text));
+ }
+ 
++BOOST_AUTO_TEST_CASE(using_for_library)
++{
++	char const* text = R"(
++		library D { }
++		contract C {
++			using D for uint;
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_not_library)
++{
++	char const* text = R"(
++		contract D { }
++		contract C {
++			using D for uint;
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(using_for_function_exists)
++{
++	char const* text = R"(
++		library D { function double(uint self) returns (uint) { return 2*self; } }
++		contract C {
++			using D for uint;
++			function f(uint a) {
++				a.double;
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_function_on_int)
++{
++	char const* text = R"(
++		library D { function double(uint self) returns (uint) { return 2*self; } }
++		contract C {
++			using D for uint;
++			function f(uint a) returns (uint) {
++				return a.double();
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_function_on_struct)
++{
++	char const* text = R"(
++		library D { struct s { uint a; } function mul(s storage self, uint x) returns (uint) { return self.a *= x; } }
++		contract C {
++			using D for D.s;
++			D.s x;
++			function f(uint a) returns (uint) {
++				return x.mul(a);
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_overload)
++{
++	char const* text = R"(
++		library D {
++			struct s { uint a; }
++			function mul(s storage self, uint x) returns (uint) { return self.a *= x; }
++			function mul(s storage self, bytes32 x) returns (bytes32) { }
++		}
++		contract C {
++			using D for D.s;
++			D.s x;
++			function f(uint a) returns (uint) {
++				return x.mul(a);
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_by_name)
++{
++	char const* text = R"(
++		library D { struct s { uint a; } function mul(s storage self, uint x) returns (uint) { return self.a *= x; } }
++		contract C {
++			using D for D.s;
++			D.s x;
++			function f(uint a) returns (uint) {
++				return x.mul({x: a});
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(using_for_mismatch)
++{
++	char const* text = R"(
++		library D { function double(bytes32 self) returns (uint) { return 2; } }
++		contract C {
++			using D for uint;
++			function f(uint a) returns (uint) {
++				return a.double();
++			}
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(using_for_not_used)
++{
++	// This is an error because the function is only bound to uint.
++	// Had it been bound to *, it would have worked.
++	char const* text = R"(
++		library D { function double(uint self) returns (uint) { return 2; } }
++		contract C {
++			using D for uint;
++			function f(uint16 a) returns (uint) {
++				return a.double();
++			}
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(using_for_arbitrary_mismatch)
++{
++	// Bound to a, but self type does not match.
++	char const* text = R"(
++		library D { function double(bytes32 self) returns (uint) { return 2; } }
++		contract C {
++			using D for *;
++			function f(uint a) returns (uint) {
++				return a.double();
++			}
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(bound_function_in_var)
++{
++	char const* text = R"(
++		library D { struct s { uint a; } function mul(s storage self, uint x) returns (uint) { return self.a *= x; } }
++		contract C {
++			using D for D.s;
++			D.s x;
++			function f(uint a) returns (uint) {
++				var g = x.mul;
++				return g({x: a});
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(create_memory_arrays)
++{
++	char const* text = R"(
++		library L {
++			struct R { uint[10][10] y; }
++			struct S { uint a; uint b; uint[20][20][20] c; R d; }
++		}
++		contract C {
++			function f(uint size) {
++				L.S[][] memory x = new L.S[][](10);
++				var y = new uint[](20);
++				var z = new bytes(size);
++			}
++		}
++	)";
++	BOOST_CHECK(success(text));
++}
++
++BOOST_AUTO_TEST_CASE(mapping_in_memory_array)
++{
++	char const* text = R"(
++		contract C {
++			function f(uint size) {
++				var x = new mapping(uint => uint)[](4);
++			}
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(new_for_non_array)
++{
++	char const* text = R"(
++		contract C {
++			function f(uint size) {
++				var x = new uint(7);
++			}
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
++BOOST_AUTO_TEST_CASE(invalid_args_creating_memory_array)
++{
++	char const* text = R"(
++		contract C {
++			function f(uint size) {
++				var x = new uint[]();
++			}
++		}
++	)";
++	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityParser.cpp b/test/libsolidity/SolidityParser.cpp
+index beb71942..fd9076c3 100644
+--- a/test/libsolidity/SolidityParser.cpp
++++ b/test/libsolidity/SolidityParser.cpp
+@@ -73,7 +73,7 @@ bool successParse(std::string const& _source)
+ }
+ 
+ void checkFunctionNatspec(
+-	ASTPointer<FunctionDefinition> _function,
++	FunctionDefinition const* _function,
+ 	std::string const& _expectedDoc
+ )
+ {
+@@ -191,20 +191,18 @@ BOOST_AUTO_TEST_CASE(function_natspec_documentation)
+ 					   "  function functionName(bytes32 input) returns (bytes32 out) {}\n"
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+-	ErrorList e;
+-	ASTPointer<ContractDefinition> contract = parseText(text, e);
+-	ASTPointer<FunctionDefinition> function;
+-
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	FunctionDefinition const* function = nullptr;
++	auto functions = contract->definedFunctions();
++
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	checkFunctionNatspec(function, "This is a test function");
+ }
+ 
+ BOOST_AUTO_TEST_CASE(function_normal_comments)
+ {
+-	ASTPointer<ContractDefinition> contract;
+-	ASTPointer<FunctionDefinition> function;
++	FunctionDefinition const* function = nullptr;
+ 	char const* text = "contract test {\n"
+ 					   "  uint256 stateVar;\n"
+ 					   "  // We won't see this comment\n"
+@@ -212,7 +210,8 @@ BOOST_AUTO_TEST_CASE(function_normal_comments)
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	auto functions = contract->definedFunctions();
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	BOOST_CHECK_MESSAGE(function->documentation() == nullptr,
+ 						"Should not have gotten a Natspecc comment for this function");
+@@ -220,8 +219,7 @@ BOOST_AUTO_TEST_CASE(function_normal_comments)
+ 
+ BOOST_AUTO_TEST_CASE(multiple_functions_natspec_documentation)
+ {
+-	ASTPointer<ContractDefinition> contract;
+-	ASTPointer<FunctionDefinition> function;
++	FunctionDefinition const* function = nullptr;
+ 	char const* text = "contract test {\n"
+ 					   "  uint256 stateVar;\n"
+ 					   "  /// This is test function 1\n"
+@@ -235,7 +233,8 @@ BOOST_AUTO_TEST_CASE(multiple_functions_natspec_documentation)
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	auto functions = contract->definedFunctions();
+ 
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	checkFunctionNatspec(function, "This is test function 1");
+@@ -253,8 +252,7 @@ BOOST_AUTO_TEST_CASE(multiple_functions_natspec_documentation)
+ 
+ BOOST_AUTO_TEST_CASE(multiline_function_documentation)
+ {
+-	ASTPointer<ContractDefinition> contract;
+-	ASTPointer<FunctionDefinition> function;
++	FunctionDefinition const* function = nullptr;
+ 	char const* text = "contract test {\n"
+ 					   "  uint256 stateVar;\n"
+ 					   "  /// This is a test function\n"
+@@ -263,7 +261,8 @@ BOOST_AUTO_TEST_CASE(multiline_function_documentation)
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	auto functions = contract->definedFunctions();
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	checkFunctionNatspec(function, "This is a test function\n"
+ 						 " and it has 2 lines");
+@@ -271,8 +270,7 @@ BOOST_AUTO_TEST_CASE(multiline_function_documentation)
+ 
+ BOOST_AUTO_TEST_CASE(natspec_comment_in_function_body)
+ {
+-	ASTPointer<ContractDefinition> contract;
+-	ASTPointer<FunctionDefinition> function;
++	FunctionDefinition const* function = nullptr;
+ 	char const* text = "contract test {\n"
+ 					   "  /// fun1 description\n"
+ 					   "  function fun1(uint256 a) {\n"
+@@ -288,7 +286,8 @@ BOOST_AUTO_TEST_CASE(natspec_comment_in_function_body)
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	auto functions = contract->definedFunctions();
+ 
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	checkFunctionNatspec(function, "fun1 description");
+@@ -300,8 +299,7 @@ BOOST_AUTO_TEST_CASE(natspec_comment_in_function_body)
+ 
+ BOOST_AUTO_TEST_CASE(natspec_docstring_between_keyword_and_signature)
+ {
+-	ASTPointer<ContractDefinition> contract;
+-	ASTPointer<FunctionDefinition> function;
++	FunctionDefinition const* function = nullptr;
+ 	char const* text = "contract test {\n"
+ 					   "  uint256 stateVar;\n"
+ 					   "  function ///I am in the wrong place \n"
+@@ -315,7 +313,8 @@ BOOST_AUTO_TEST_CASE(natspec_docstring_between_keyword_and_signature)
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	auto functions = contract->definedFunctions();
+ 
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	BOOST_CHECK_MESSAGE(!function->documentation(),
+@@ -324,8 +323,7 @@ BOOST_AUTO_TEST_CASE(natspec_docstring_between_keyword_and_signature)
+ 
+ BOOST_AUTO_TEST_CASE(natspec_docstring_after_signature)
+ {
+-	ASTPointer<ContractDefinition> contract;
+-	ASTPointer<FunctionDefinition> function;
++	FunctionDefinition const* function = nullptr;
+ 	char const* text = "contract test {\n"
+ 					   "  uint256 stateVar;\n"
+ 					   "  function fun1(uint256 a) {\n"
+@@ -339,7 +337,8 @@ BOOST_AUTO_TEST_CASE(natspec_docstring_after_signature)
+ 					   "}\n";
+ 	BOOST_CHECK(successParse(text));
+ 	ErrorList errors;
+-	auto functions = parseText(text, errors)->definedFunctions();
++	ASTPointer<ContractDefinition> contract = parseText(text, errors);
++	auto functions = contract->definedFunctions();
+ 
+ 	ETH_TEST_REQUIRE_NO_THROW(function = functions.at(0), "Failed to retrieve function");
+ 	BOOST_CHECK_MESSAGE(!function->documentation(),
+@@ -1033,6 +1032,21 @@ BOOST_AUTO_TEST_CASE(member_access_parser_ambiguity)
+ 	BOOST_CHECK(successParse(text));
+ }
+ 
++BOOST_AUTO_TEST_CASE(using_for)
++{
++	char const* text = R"(
++		contract C {
++			struct s { uint a; }
++			using LibraryName for uint;
++			using Library2 for *;
++			using Lib for s;
++			function f() {
++			}
++		}
++	)";
++	BOOST_CHECK(successParse(text));
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/solidityExecutionFramework.h b/test/libsolidity/solidityExecutionFramework.h
+index 4da02eb2..a5549d5b 100644
+--- a/test/libsolidity/solidityExecutionFramework.h
++++ b/test/libsolidity/solidityExecutionFramework.h
+@@ -26,8 +26,10 @@
+ #include <tuple>
+ #include "../TestHelper.h"
+ #include <libethcore/ABI.h>
++#include <libethcore/SealEngine.h>
+ #include <libethereum/State.h>
+ #include <libethereum/Executive.h>
++#include <libethereum/ChainParams.h>
+ #include <libsolidity/interface/CompilerStack.h>
+ #include <libsolidity/interface/Exceptions.h>
+ 
+@@ -42,7 +44,9 @@ namespace test
+ class ExecutionFramework
+ {
+ public:
+-	ExecutionFramework()
++	ExecutionFramework():
++		m_sealEngine(eth::ChainParams().createSealEngine()),
++		m_state(0)
+ 	{
+ 		if (g_logVerbosity != -1)
+ 			g_logVerbosity = 0;
+@@ -250,7 +254,7 @@ protected:
+ 	void sendMessage(bytes const& _data, bool _isCreation, u256 const& _value = 0)
+ 	{
+ 		m_state.addBalance(m_sender, _value); // just in case
+-		eth::Executive executive(m_state, m_envInfo, 0);
++		eth::Executive executive(m_state, m_envInfo, m_sealEngine.get());
+ 		eth::ExecutionResult res;
+ 		executive.setResultRecipient(res);
+ 		eth::Transaction t =
+@@ -285,6 +289,7 @@ protected:
+ 		m_logs = executive.logs();
+ 	}
+ 
++	std::unique_ptr<eth::SealEngineFace> m_sealEngine;
+ 	size_t m_optimizeRuns = 200;
+ 	bool m_optimize = false;
+ 	bool m_addStandardSources = false;

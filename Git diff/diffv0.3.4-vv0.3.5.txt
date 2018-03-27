@@ -1,0 +1,2131 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 35a44d1c..6d5bd606 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -8,7 +8,7 @@ include(EthPolicy)
+ eth_policy()
+ 
+ # project name and version should be set after cmake_policy CMP0048
+-set(PROJECT_VERSION "0.3.4")
++set(PROJECT_VERSION "0.3.5")
+ project(solidity VERSION ${PROJECT_VERSION})
+ 
+ # Let's find our dependencies
+diff --git a/LICENSE b/LICENSE
+deleted file mode 100644
+index 20efd1b3..00000000
+--- a/LICENSE
++++ /dev/null
+@@ -1,22 +0,0 @@
+-The MIT License (MIT)
+-
+-Copyright (c) 2015 
+-
+-Permission is hereby granted, free of charge, to any person obtaining a copy
+-of this software and associated documentation files (the "Software"), to deal
+-in the Software without restriction, including without limitation the rights
+-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-copies of the Software, and to permit persons to whom the Software is
+-furnished to do so, subject to the following conditions:
+-
+-The above copyright notice and this permission notice shall be included in all
+-copies or substantial portions of the Software.
+-
+-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+-SOFTWARE.
+-
+diff --git a/LICENSE.txt b/LICENSE.txt
+new file mode 100644
+index 00000000..10926e87
+--- /dev/null
++++ b/LICENSE.txt
+@@ -0,0 +1,675 @@
++                    GNU GENERAL PUBLIC LICENSE
++                       Version 3, 29 June 2007
++
++ Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
++ Everyone is permitted to copy and distribute verbatim copies
++ of this license document, but changing it is not allowed.
++
++                            Preamble
++
++  The GNU General Public License is a free, copyleft license for
++software and other kinds of works.
++
++  The licenses for most software and other practical works are designed
++to take away your freedom to share and change the works.  By contrast,
++the GNU General Public License is intended to guarantee your freedom to
++share and change all versions of a program--to make sure it remains free
++software for all its users.  We, the Free Software Foundation, use the
++GNU General Public License for most of our software; it applies also to
++any other work released this way by its authors.  You can apply it to
++your programs, too.
++
++  When we speak of free software, we are referring to freedom, not
++price.  Our General Public Licenses are designed to make sure that you
++have the freedom to distribute copies of free software (and charge for
++them if you wish), that you receive source code or can get it if you
++want it, that you can change the software or use pieces of it in new
++free programs, and that you know you can do these things.
++
++  To protect your rights, we need to prevent others from denying you
++these rights or asking you to surrender the rights.  Therefore, you have
++certain responsibilities if you distribute copies of the software, or if
++you modify it: responsibilities to respect the freedom of others.
++
++  For example, if you distribute copies of such a program, whether
++gratis or for a fee, you must pass on to the recipients the same
++freedoms that you received.  You must make sure that they, too, receive
++or can get the source code.  And you must show them these terms so they
++know their rights.
++
++  Developers that use the GNU GPL protect your rights with two steps:
++(1) assert copyright on the software, and (2) offer you this License
++giving you legal permission to copy, distribute and/or modify it.
++
++  For the developers' and authors' protection, the GPL clearly explains
++that there is no warranty for this free software.  For both users' and
++authors' sake, the GPL requires that modified versions be marked as
++changed, so that their problems will not be attributed erroneously to
++authors of previous versions.
++
++  Some devices are designed to deny users access to install or run
++modified versions of the software inside them, although the manufacturer
++can do so.  This is fundamentally incompatible with the aim of
++protecting users' freedom to change the software.  The systematic
++pattern of such abuse occurs in the area of products for individuals to
++use, which is precisely where it is most unacceptable.  Therefore, we
++have designed this version of the GPL to prohibit the practice for those
++products.  If such problems arise substantially in other domains, we
++stand ready to extend this provision to those domains in future versions
++of the GPL, as needed to protect the freedom of users.
++
++  Finally, every program is threatened constantly by software patents.
++States should not allow patents to restrict development and use of
++software on general-purpose computers, but in those that do, we wish to
++avoid the special danger that patents applied to a free program could
++make it effectively proprietary.  To prevent this, the GPL assures that
++patents cannot be used to render the program non-free.
++
++  The precise terms and conditions for copying, distribution and
++modification follow.
++
++                       TERMS AND CONDITIONS
++
++  0. Definitions.
++
++  "This License" refers to version 3 of the GNU General Public License.
++
++  "Copyright" also means copyright-like laws that apply to other kinds of
++works, such as semiconductor masks.
++
++  "The Program" refers to any copyrightable work licensed under this
++License.  Each licensee is addressed as "you".  "Licensees" and
++"recipients" may be individuals or organizations.
++
++  To "modify" a work means to copy from or adapt all or part of the work
++in a fashion requiring copyright permission, other than the making of an
++exact copy.  The resulting work is called a "modified version" of the
++earlier work or a work "based on" the earlier work.
++
++  A "covered work" means either the unmodified Program or a work based
++on the Program.
++
++  To "propagate" a work means to do anything with it that, without
++permission, would make you directly or secondarily liable for
++infringement under applicable copyright law, except executing it on a
++computer or modifying a private copy.  Propagation includes copying,
++distribution (with or without modification), making available to the
++public, and in some countries other activities as well.
++
++  To "convey" a work means any kind of propagation that enables other
++parties to make or receive copies.  Mere interaction with a user through
++a computer network, with no transfer of a copy, is not conveying.
++
++  An interactive user interface displays "Appropriate Legal Notices"
++to the extent that it includes a convenient and prominently visible
++feature that (1) displays an appropriate copyright notice, and (2)
++tells the user that there is no warranty for the work (except to the
++extent that warranties are provided), that licensees may convey the
++work under this License, and how to view a copy of this License.  If
++the interface presents a list of user commands or options, such as a
++menu, a prominent item in the list meets this criterion.
++
++  1. Source Code.
++
++  The "source code" for a work means the preferred form of the work
++for making modifications to it.  "Object code" means any non-source
++form of a work.
++
++  A "Standard Interface" means an interface that either is an official
++standard defined by a recognized standards body, or, in the case of
++interfaces specified for a particular programming language, one that
++is widely used among developers working in that language.
++
++  The "System Libraries" of an executable work include anything, other
++than the work as a whole, that (a) is included in the normal form of
++packaging a Major Component, but which is not part of that Major
++Component, and (b) serves only to enable use of the work with that
++Major Component, or to implement a Standard Interface for which an
++implementation is available to the public in source code form.  A
++"Major Component", in this context, means a major essential component
++(kernel, window system, and so on) of the specific operating system
++(if any) on which the executable work runs, or a compiler used to
++produce the work, or an object code interpreter used to run it.
++
++  The "Corresponding Source" for a work in object code form means all
++the source code needed to generate, install, and (for an executable
++work) run the object code and to modify the work, including scripts to
++control those activities.  However, it does not include the work's
++System Libraries, or general-purpose tools or generally available free
++programs which are used unmodified in performing those activities but
++which are not part of the work.  For example, Corresponding Source
++includes interface definition files associated with source files for
++the work, and the source code for shared libraries and dynamically
++linked subprograms that the work is specifically designed to require,
++such as by intimate data communication or control flow between those
++subprograms and other parts of the work.
++
++  The Corresponding Source need not include anything that users
++can regenerate automatically from other parts of the Corresponding
++Source.
++
++  The Corresponding Source for a work in source code form is that
++same work.
++
++  2. Basic Permissions.
++
++  All rights granted under this License are granted for the term of
++copyright on the Program, and are irrevocable provided the stated
++conditions are met.  This License explicitly affirms your unlimited
++permission to run the unmodified Program.  The output from running a
++covered work is covered by this License only if the output, given its
++content, constitutes a covered work.  This License acknowledges your
++rights of fair use or other equivalent, as provided by copyright law.
++
++  You may make, run and propagate covered works that you do not
++convey, without conditions so long as your license otherwise remains
++in force.  You may convey covered works to others for the sole purpose
++of having them make modifications exclusively for you, or provide you
++with facilities for running those works, provided that you comply with
++the terms of this License in conveying all material for which you do
++not control copyright.  Those thus making or running the covered works
++for you must do so exclusively on your behalf, under your direction
++and control, on terms that prohibit them from making any copies of
++your copyrighted material outside their relationship with you.
++
++  Conveying under any other circumstances is permitted solely under
++the conditions stated below.  Sublicensing is not allowed; section 10
++makes it unnecessary.
++
++  3. Protecting Users' Legal Rights From Anti-Circumvention Law.
++
++  No covered work shall be deemed part of an effective technological
++measure under any applicable law fulfilling obligations under article
++11 of the WIPO copyright treaty adopted on 20 December 1996, or
++similar laws prohibiting or restricting circumvention of such
++measures.
++
++  When you convey a covered work, you waive any legal power to forbid
++circumvention of technological measures to the extent such circumvention
++is effected by exercising rights under this License with respect to
++the covered work, and you disclaim any intention to limit operation or
++modification of the work as a means of enforcing, against the work's
++users, your or third parties' legal rights to forbid circumvention of
++technological measures.
++
++  4. Conveying Verbatim Copies.
++
++  You may convey verbatim copies of the Program's source code as you
++receive it, in any medium, provided that you conspicuously and
++appropriately publish on each copy an appropriate copyright notice;
++keep intact all notices stating that this License and any
++non-permissive terms added in accord with section 7 apply to the code;
++keep intact all notices of the absence of any warranty; and give all
++recipients a copy of this License along with the Program.
++
++  You may charge any price or no price for each copy that you convey,
++and you may offer support or warranty protection for a fee.
++
++  5. Conveying Modified Source Versions.
++
++  You may convey a work based on the Program, or the modifications to
++produce it from the Program, in the form of source code under the
++terms of section 4, provided that you also meet all of these conditions:
++
++    a) The work must carry prominent notices stating that you modified
++    it, and giving a relevant date.
++
++    b) The work must carry prominent notices stating that it is
++    released under this License and any conditions added under section
++    7.  This requirement modifies the requirement in section 4 to
++    "keep intact all notices".
++
++    c) You must license the entire work, as a whole, under this
++    License to anyone who comes into possession of a copy.  This
++    License will therefore apply, along with any applicable section 7
++    additional terms, to the whole of the work, and all its parts,
++    regardless of how they are packaged.  This License gives no
++    permission to license the work in any other way, but it does not
++    invalidate such permission if you have separately received it.
++
++    d) If the work has interactive user interfaces, each must display
++    Appropriate Legal Notices; however, if the Program has interactive
++    interfaces that do not display Appropriate Legal Notices, your
++    work need not make them do so.
++
++  A compilation of a covered work with other separate and independent
++works, which are not by their nature extensions of the covered work,
++and which are not combined with it such as to form a larger program,
++in or on a volume of a storage or distribution medium, is called an
++"aggregate" if the compilation and its resulting copyright are not
++used to limit the access or legal rights of the compilation's users
++beyond what the individual works permit.  Inclusion of a covered work
++in an aggregate does not cause this License to apply to the other
++parts of the aggregate.
++
++  6. Conveying Non-Source Forms.
++
++  You may convey a covered work in object code form under the terms
++of sections 4 and 5, provided that you also convey the
++machine-readable Corresponding Source under the terms of this License,
++in one of these ways:
++
++    a) Convey the object code in, or embodied in, a physical product
++    (including a physical distribution medium), accompanied by the
++    Corresponding Source fixed on a durable physical medium
++    customarily used for software interchange.
++
++    b) Convey the object code in, or embodied in, a physical product
++    (including a physical distribution medium), accompanied by a
++    written offer, valid for at least three years and valid for as
++    long as you offer spare parts or customer support for that product
++    model, to give anyone who possesses the object code either (1) a
++    copy of the Corresponding Source for all the software in the
++    product that is covered by this License, on a durable physical
++    medium customarily used for software interchange, for a price no
++    more than your reasonable cost of physically performing this
++    conveying of source, or (2) access to copy the
++    Corresponding Source from a network server at no charge.
++
++    c) Convey individual copies of the object code with a copy of the
++    written offer to provide the Corresponding Source.  This
++    alternative is allowed only occasionally and noncommercially, and
++    only if you received the object code with such an offer, in accord
++    with subsection 6b.
++
++    d) Convey the object code by offering access from a designated
++    place (gratis or for a charge), and offer equivalent access to the
++    Corresponding Source in the same way through the same place at no
++    further charge.  You need not require recipients to copy the
++    Corresponding Source along with the object code.  If the place to
++    copy the object code is a network server, the Corresponding Source
++    may be on a different server (operated by you or a third party)
++    that supports equivalent copying facilities, provided you maintain
++    clear directions next to the object code saying where to find the
++    Corresponding Source.  Regardless of what server hosts the
++    Corresponding Source, you remain obligated to ensure that it is
++    available for as long as needed to satisfy these requirements.
++
++    e) Convey the object code using peer-to-peer transmission, provided
++    you inform other peers where the object code and Corresponding
++    Source of the work are being offered to the general public at no
++    charge under subsection 6d.
++
++  A separable portion of the object code, whose source code is excluded
++from the Corresponding Source as a System Library, need not be
++included in conveying the object code work.
++
++  A "User Product" is either (1) a "consumer product", which means any
++tangible personal property which is normally used for personal, family,
++or household purposes, or (2) anything designed or sold for incorporation
++into a dwelling.  In determining whether a product is a consumer product,
++doubtful cases shall be resolved in favor of coverage.  For a particular
++product received by a particular user, "normally used" refers to a
++typical or common use of that class of product, regardless of the status
++of the particular user or of the way in which the particular user
++actually uses, or expects or is expected to use, the product.  A product
++is a consumer product regardless of whether the product has substantial
++commercial, industrial or non-consumer uses, unless such uses represent
++the only significant mode of use of the product.
++
++  "Installation Information" for a User Product means any methods,
++procedures, authorization keys, or other information required to install
++and execute modified versions of a covered work in that User Product from
++a modified version of its Corresponding Source.  The information must
++suffice to ensure that the continued functioning of the modified object
++code is in no case prevented or interfered with solely because
++modification has been made.
++
++  If you convey an object code work under this section in, or with, or
++specifically for use in, a User Product, and the conveying occurs as
++part of a transaction in which the right of possession and use of the
++User Product is transferred to the recipient in perpetuity or for a
++fixed term (regardless of how the transaction is characterized), the
++Corresponding Source conveyed under this section must be accompanied
++by the Installation Information.  But this requirement does not apply
++if neither you nor any third party retains the ability to install
++modified object code on the User Product (for example, the work has
++been installed in ROM).
++
++  The requirement to provide Installation Information does not include a
++requirement to continue to provide support service, warranty, or updates
++for a work that has been modified or installed by the recipient, or for
++the User Product in which it has been modified or installed.  Access to a
++network may be denied when the modification itself materially and
++adversely affects the operation of the network or violates the rules and
++protocols for communication across the network.
++
++  Corresponding Source conveyed, and Installation Information provided,
++in accord with this section must be in a format that is publicly
++documented (and with an implementation available to the public in
++source code form), and must require no special password or key for
++unpacking, reading or copying.
++
++  7. Additional Terms.
++
++  "Additional permissions" are terms that supplement the terms of this
++License by making exceptions from one or more of its conditions.
++Additional permissions that are applicable to the entire Program shall
++be treated as though they were included in this License, to the extent
++that they are valid under applicable law.  If additional permissions
++apply only to part of the Program, that part may be used separately
++under those permissions, but the entire Program remains governed by
++this License without regard to the additional permissions.
++
++  When you convey a copy of a covered work, you may at your option
++remove any additional permissions from that copy, or from any part of
++it.  (Additional permissions may be written to require their own
++removal in certain cases when you modify the work.)  You may place
++additional permissions on material, added by you to a covered work,
++for which you have or can give appropriate copyright permission.
++
++  Notwithstanding any other provision of this License, for material you
++add to a covered work, you may (if authorized by the copyright holders of
++that material) supplement the terms of this License with terms:
++
++    a) Disclaiming warranty or limiting liability differently from the
++    terms of sections 15 and 16 of this License; or
++
++    b) Requiring preservation of specified reasonable legal notices or
++    author attributions in that material or in the Appropriate Legal
++    Notices displayed by works containing it; or
++
++    c) Prohibiting misrepresentation of the origin of that material, or
++    requiring that modified versions of such material be marked in
++    reasonable ways as different from the original version; or
++
++    d) Limiting the use for publicity purposes of names of licensors or
++    authors of the material; or
++
++    e) Declining to grant rights under trademark law for use of some
++    trade names, trademarks, or service marks; or
++
++    f) Requiring indemnification of licensors and authors of that
++    material by anyone who conveys the material (or modified versions of
++    it) with contractual assumptions of liability to the recipient, for
++    any liability that these contractual assumptions directly impose on
++    those licensors and authors.
++
++  All other non-permissive additional terms are considered "further
++restrictions" within the meaning of section 10.  If the Program as you
++received it, or any part of it, contains a notice stating that it is
++governed by this License along with a term that is a further
++restriction, you may remove that term.  If a license document contains
++a further restriction but permits relicensing or conveying under this
++License, you may add to a covered work material governed by the terms
++of that license document, provided that the further restriction does
++not survive such relicensing or conveying.
++
++  If you add terms to a covered work in accord with this section, you
++must place, in the relevant source files, a statement of the
++additional terms that apply to those files, or a notice indicating
++where to find the applicable terms.
++
++  Additional terms, permissive or non-permissive, may be stated in the
++form of a separately written license, or stated as exceptions;
++the above requirements apply either way.
++
++  8. Termination.
++
++  You may not propagate or modify a covered work except as expressly
++provided under this License.  Any attempt otherwise to propagate or
++modify it is void, and will automatically terminate your rights under
++this License (including any patent licenses granted under the third
++paragraph of section 11).
++
++  However, if you cease all violation of this License, then your
++license from a particular copyright holder is reinstated (a)
++provisionally, unless and until the copyright holder explicitly and
++finally terminates your license, and (b) permanently, if the copyright
++holder fails to notify you of the violation by some reasonable means
++prior to 60 days after the cessation.
++
++  Moreover, your license from a particular copyright holder is
++reinstated permanently if the copyright holder notifies you of the
++violation by some reasonable means, this is the first time you have
++received notice of violation of this License (for any work) from that
++copyright holder, and you cure the violation prior to 30 days after
++your receipt of the notice.
++
++  Termination of your rights under this section does not terminate the
++licenses of parties who have received copies or rights from you under
++this License.  If your rights have been terminated and not permanently
++reinstated, you do not qualify to receive new licenses for the same
++material under section 10.
++
++  9. Acceptance Not Required for Having Copies.
++
++  You are not required to accept this License in order to receive or
++run a copy of the Program.  Ancillary propagation of a covered work
++occurring solely as a consequence of using peer-to-peer transmission
++to receive a copy likewise does not require acceptance.  However,
++nothing other than this License grants you permission to propagate or
++modify any covered work.  These actions infringe copyright if you do
++not accept this License.  Therefore, by modifying or propagating a
++covered work, you indicate your acceptance of this License to do so.
++
++  10. Automatic Licensing of Downstream Recipients.
++
++  Each time you convey a covered work, the recipient automatically
++receives a license from the original licensors, to run, modify and
++propagate that work, subject to this License.  You are not responsible
++for enforcing compliance by third parties with this License.
++
++  An "entity transaction" is a transaction transferring control of an
++organization, or substantially all assets of one, or subdividing an
++organization, or merging organizations.  If propagation of a covered
++work results from an entity transaction, each party to that
++transaction who receives a copy of the work also receives whatever
++licenses to the work the party's predecessor in interest had or could
++give under the previous paragraph, plus a right to possession of the
++Corresponding Source of the work from the predecessor in interest, if
++the predecessor has it or can get it with reasonable efforts.
++
++  You may not impose any further restrictions on the exercise of the
++rights granted or affirmed under this License.  For example, you may
++not impose a license fee, royalty, or other charge for exercise of
++rights granted under this License, and you may not initiate litigation
++(including a cross-claim or counterclaim in a lawsuit) alleging that
++any patent claim is infringed by making, using, selling, offering for
++sale, or importing the Program or any portion of it.
++
++  11. Patents.
++
++  A "contributor" is a copyright holder who authorizes use under this
++License of the Program or a work on which the Program is based.  The
++work thus licensed is called the contributor's "contributor version".
++
++  A contributor's "essential patent claims" are all patent claims
++owned or controlled by the contributor, whether already acquired or
++hereafter acquired, that would be infringed by some manner, permitted
++by this License, of making, using, or selling its contributor version,
++but do not include claims that would be infringed only as a
++consequence of further modification of the contributor version.  For
++purposes of this definition, "control" includes the right to grant
++patent sublicenses in a manner consistent with the requirements of
++this License.
++
++  Each contributor grants you a non-exclusive, worldwide, royalty-free
++patent license under the contributor's essential patent claims, to
++make, use, sell, offer for sale, import and otherwise run, modify and
++propagate the contents of its contributor version.
++
++  In the following three paragraphs, a "patent license" is any express
++agreement or commitment, however denominated, not to enforce a patent
++(such as an express permission to practice a patent or covenant not to
++sue for patent infringement).  To "grant" such a patent license to a
++party means to make such an agreement or commitment not to enforce a
++patent against the party.
++
++  If you convey a covered work, knowingly relying on a patent license,
++and the Corresponding Source of the work is not available for anyone
++to copy, free of charge and under the terms of this License, through a
++publicly available network server or other readily accessible means,
++then you must either (1) cause the Corresponding Source to be so
++available, or (2) arrange to deprive yourself of the benefit of the
++patent license for this particular work, or (3) arrange, in a manner
++consistent with the requirements of this License, to extend the patent
++license to downstream recipients.  "Knowingly relying" means you have
++actual knowledge that, but for the patent license, your conveying the
++covered work in a country, or your recipient's use of the covered work
++in a country, would infringe one or more identifiable patents in that
++country that you have reason to believe are valid.
++
++  If, pursuant to or in connection with a single transaction or
++arrangement, you convey, or propagate by procuring conveyance of, a
++covered work, and grant a patent license to some of the parties
++receiving the covered work authorizing them to use, propagate, modify
++or convey a specific copy of the covered work, then the patent license
++you grant is automatically extended to all recipients of the covered
++work and works based on it.
++
++  A patent license is "discriminatory" if it does not include within
++the scope of its coverage, prohibits the exercise of, or is
++conditioned on the non-exercise of one or more of the rights that are
++specifically granted under this License.  You may not convey a covered
++work if you are a party to an arrangement with a third party that is
++in the business of distributing software, under which you make payment
++to the third party based on the extent of your activity of conveying
++the work, and under which the third party grants, to any of the
++parties who would receive the covered work from you, a discriminatory
++patent license (a) in connection with copies of the covered work
++conveyed by you (or copies made from those copies), or (b) primarily
++for and in connection with specific products or compilations that
++contain the covered work, unless you entered into that arrangement,
++or that patent license was granted, prior to 28 March 2007.
++
++  Nothing in this License shall be construed as excluding or limiting
++any implied license or other defenses to infringement that may
++otherwise be available to you under applicable patent law.
++
++  12. No Surrender of Others' Freedom.
++
++  If conditions are imposed on you (whether by court order, agreement or
++otherwise) that contradict the conditions of this License, they do not
++excuse you from the conditions of this License.  If you cannot convey a
++covered work so as to satisfy simultaneously your obligations under this
++License and any other pertinent obligations, then as a consequence you may
++not convey it at all.  For example, if you agree to terms that obligate you
++to collect a royalty for further conveying from those to whom you convey
++the Program, the only way you could satisfy both those terms and this
++License would be to refrain entirely from conveying the Program.
++
++  13. Use with the GNU Affero General Public License.
++
++  Notwithstanding any other provision of this License, you have
++permission to link or combine any covered work with a work licensed
++under version 3 of the GNU Affero General Public License into a single
++combined work, and to convey the resulting work.  The terms of this
++License will continue to apply to the part which is the covered work,
++but the special requirements of the GNU Affero General Public License,
++section 13, concerning interaction through a network will apply to the
++combination as such.
++
++  14. Revised Versions of this License.
++
++  The Free Software Foundation may publish revised and/or new versions of
++the GNU General Public License from time to time.  Such new versions will
++be similar in spirit to the present version, but may differ in detail to
++address new problems or concerns.
++
++  Each version is given a distinguishing version number.  If the
++Program specifies that a certain numbered version of the GNU General
++Public License "or any later version" applies to it, you have the
++option of following the terms and conditions either of that numbered
++version or of any later version published by the Free Software
++Foundation.  If the Program does not specify a version number of the
++GNU General Public License, you may choose any version ever published
++by the Free Software Foundation.
++
++  If the Program specifies that a proxy can decide which future
++versions of the GNU General Public License can be used, that proxy's
++public statement of acceptance of a version permanently authorizes you
++to choose that version for the Program.
++
++  Later license versions may give you additional or different
++permissions.  However, no additional obligations are imposed on any
++author or copyright holder as a result of your choosing to follow a
++later version.
++
++  15. Disclaimer of Warranty.
++
++  THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
++APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
++HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
++OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
++THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
++IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
++ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
++
++  16. Limitation of Liability.
++
++  IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
++WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
++THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
++GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
++USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
++DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
++PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
++EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
++SUCH DAMAGES.
++
++  17. Interpretation of Sections 15 and 16.
++
++  If the disclaimer of warranty and limitation of liability provided
++above cannot be given local legal effect according to their terms,
++reviewing courts shall apply local law that most closely approximates
++an absolute waiver of all civil liability in connection with the
++Program, unless a warranty or assumption of liability accompanies a
++copy of the Program in return for a fee.
++
++                     END OF TERMS AND CONDITIONS
++
++            How to Apply These Terms to Your New Programs
++
++  If you develop a new program, and you want it to be of the greatest
++possible use to the public, the best way to achieve this is to make it
++free software which everyone can redistribute and change under these terms.
++
++  To do so, attach the following notices to the program.  It is safest
++to attach them to the start of each source file to most effectively
++state the exclusion of warranty; and each file should have at least
++the "copyright" line and a pointer to where the full notice is found.
++
++    <one line to give the program's name and a brief idea of what it does.>
++    Copyright (C) <year>  <name of author>
++
++    This program is free software: you can redistribute it and/or modify
++    it under the terms of the GNU General Public License as published by
++    the Free Software Foundation, either version 3 of the License, or
++    (at your option) any later version.
++
++    This program is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++    GNU General Public License for more details.
++
++    You should have received a copy of the GNU General Public License
++    along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++Also add information on how to contact you by electronic and paper mail.
++
++  If the program does terminal interaction, make it output a short
++notice like this when it starts in an interactive mode:
++
++    <program>  Copyright (C) <year>  <name of author>
++    This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
++    This is free software, and you are welcome to redistribute it
++    under certain conditions; type `show c' for details.
++
++The hypothetical commands `show w' and `show c' should show the appropriate
++parts of the General Public License.  Of course, your program's commands
++might be different; for a GUI interface, you would use an "about box".
++
++  You should also get your employer (if you work as a programmer) or school,
++if any, to sign a "copyright disclaimer" for the program, if necessary.
++For more information on this, and how to apply and follow the GNU GPL, see
++<http://www.gnu.org/licenses/>.
++
++  The GNU General Public License does not permit incorporating your program
++into proprietary programs.  If your program is a subroutine library, you
++may consider it more useful to permit linking proprietary applications with
++the library.  If this is what you want to do, use the GNU Lesser General
++Public License instead of this License.  But first, please read
++<http://www.gnu.org/philosophy/why-not-lgpl.html>.
++
+diff --git a/README.md b/README.md
+index a1a524d8..8a0165b8 100644
+--- a/README.md
++++ b/README.md
+@@ -18,16 +18,6 @@ See the [Wiki](https://github.com/ethereum/webthree-umbrella/wiki) for build ins
+ 
+ ## How to Contribute
+ 
+-### External Contributors
+-
+-I hereby place all my contributions in this codebase under an MIT
+-licence, as specified [here](http://opensource.org/licenses/MIT).
+-- *Name Surname* (**email@domain**)
+-
+-### Contribution guideline
+-
+-Please add yourself in the `@author` doxygen  section of the file your are adding/editing
+-with the same wording as the one you listed yourself in the external contributors section above,
+-only replacing the word **contribution** by **file**
+-
+-Please read [CodingStandards.txt](https://github.com/ethereum/webthree-umbrella/blob/develop/CodingStandards.txt) thoroughly before making alterations to the code base. Please do *NOT* use an editor that automatically reformats whitespace away from astylerc or the formatting guidelines as described in [CodingStandards.txt](https://github.com/ethereum/webthree-umbrella/blob/develop/CodingStandards.txt).
++This repository uses the same [coding style](https://github.com/ethereum/webthree-umbrella/blob/develop/CodingStandards.txt) as
++all of the cpp-ethereum projects. Please try to align with us in the gitter channel before making larger changes.
++Any contributions are welcome!
+diff --git a/docs/common-patterns.rst b/docs/common-patterns.rst
+index c8751fd1..9096571e 100644
+--- a/docs/common-patterns.rst
++++ b/docs/common-patterns.rst
+@@ -28,8 +28,6 @@ functions and this is what this page is about.
+ The use of **function modifiers** makes these
+ restrictions highly readable.
+ 
+-.. {% include open_link gist="fe4ef267cbdeac151b98" %}
+-
+ ::
+ 
+     contract AccessRestriction {
+@@ -167,8 +165,6 @@ function finishes.
+     return. If you want to do that, make sure
+     to call nextStage manually from those functions.
+ 
+-.. {% include open_link gist="0a221eaceb6d708bf271" %}
+-
+ ::
+ 
+     contract StateMachine {
+diff --git a/docs/index.rst b/docs/index.rst
+index 178f34d9..61081e1c 100644
+--- a/docs/index.rst
++++ b/docs/index.rst
+@@ -45,19 +45,19 @@ Available Solidity Integrations
+     Solidity syntax highlighting for SublimeText editor.
+ 
+ * `Atom Solidity package <https://github.com/gmtcreators/atom-solidity/>`_
+-    Plugin for the atom editor that features syntax highlighting, compilation and a runtime environment (requires backend node).
++    Plugin for the Atom editor that features syntax highlighting, compilation and a runtime environment (requires backend node).
+ 
+ * `Atom Solidity Linter <https://atom.io/packages/linter-solidity>`_
+-    Plugin for the atom editor that provides solidity linting
++    Plugin for the Atom editor that provides Solidity linting.
+ 
+ * `Visual Studio Code extension <http://juan.blanco.ws/solidity-contracts-in-visual-studio-code/>`_
+     Solidity plugin for Microsoft Visual Studio Code that includes syntax highlighting and the Solidity compiler.
+ 
+ * `Emacs Solidity <https://github.com/ethereum/emacs-solidity/>`_
+-    Plugin for the emacs editor providing syntax highlighting and compilation error reporting.
++    Plugin for the Emacs editor providing syntax highlighting and compilation error reporting.
+ 
+-* `VIM Solidity <https://github.com/tomlion/vim-solidity/>`_
+-    Plugin for the VIM editor providing syntax highlighting.
++* `Vim Solidity <https://github.com/tomlion/vim-solidity/>`_
++    Plugin for the Vim editor providing syntax highlighting.
+ 
+ Language Documentation
+ ----------------------
+diff --git a/docs/installing-solidity.rst b/docs/installing-solidity.rst
+index 400aab5b..a5f9b0f2 100644
+--- a/docs/installing-solidity.rst
++++ b/docs/installing-solidity.rst
+@@ -68,67 +68,75 @@ Set up Homebrew:
+     brew install llvm --HEAD --with-clang
+     brew install qt5 --with-d-bus          # add --verbose if long waits with a stale screen drive you crazy as well
+ 
+-Ubuntu
+-------
++Ubuntu Trusty (14.04)
++---------------------
+ 
+-Below are the build instructions for the latest versions of Ubuntu. The best
+-supported platform as of December 2014 is Ubuntu 14.04, 64 bit, with at least 2
+-GB RAM. All our tests are done with this version. Community contributions for
+-other versions are welcome!
+-
+-Install dependencies:
+-
+-Before you can build the source, you need several tools and dependencies for the application to get started.
+-
+-First, update your repositories. Not all packages are provided in the main
+-Ubuntu repository, those you'll get from the Ethereum PPA and the LLVM archive.
++Below are the instructions to install the minimal dependencies required
++to compile Solidity on Ubuntu 14.04 (Trusty Tahr).
+ 
+ .. note::
+ 
+-    Ubuntu 14.04 users, you'll need the latest version of cmake. For this, use:
+-    `sudo apt-add-repository ppa:george-edison55/cmake-3.x`
+-
+-Now add all the rest:
++    These dependencies are not enough to compile the GUIs (Alethzero and Mix).
+ 
+ .. code-block:: bash
+ 
+-    sudo apt-get -y update
+-    sudo apt-get -y install language-pack-en-base
+-    sudo dpkg-reconfigure locales
+-    sudo apt-get -y install software-properties-common
++    sudo apt-get -y install build-essential git cmake libgmp-dev libboost-all-dev \
++        libjsoncpp-dev libleveldb-dev libcurl4-openssl-dev libminiupnpc-dev \
++        libmicrohttpd-dev
++    
+     sudo add-apt-repository -y ppa:ethereum/ethereum
+     sudo add-apt-repository -y ppa:ethereum/ethereum-dev
+     sudo apt-get -y update
+-    sudo apt-get -y upgrade
++    sudo apt-get -y upgrade # this will update cmake to version 3.x
++    sudo apt-get -y install libcryptopp-dev libjson-rpc-cpp-dev
+ 
+-For Ubuntu 15.04 (Vivid Vervet) or older, use the following command to add the develop packages:
++Ubuntu Xenial (16.04)
++---------------------
+ 
+-.. code-block:: bash
++Below are the instructions to install the minimal dependencies required
++to compile Solidity on Ubuntu 16.04 (Xenial Xerus).
+ 
+-    sudo apt-get -y install build-essential git cmake libboost-all-dev libgmp-dev libleveldb-dev libminiupnpc-dev libreadline-dev libncurses5-dev libcurl4-openssl-dev libcryptopp-dev libjson-rpc-cpp-dev libmicrohttpd-dev libjsoncpp-dev libedit-dev libz-dev
++One of the dependencies (Crypto++ Library, with version >= 5.6.2) can be
++installed either by adding the Ethereum PPA (Option 1) or by backporting
++``libcrypto++`` from Ubuntu Development to Ubuntu Xenial (Option 2).
+ 
+-For Ubuntu 15.10 (Wily Werewolf) or newer, use the following command instead:
++.. note::
+ 
+-.. code-block:: bash
++    These dependencies are not enough to compile the GUIs (Alethzero and Mix).
+ 
+-    sudo apt-get -y install build-essential git cmake libboost-all-dev libgmp-dev libleveldb-dev libminiupnpc-dev libreadline-dev libncurses5-dev libcurl4-openssl-dev libcryptopp-dev libjsonrpccpp-dev libmicrohttpd-dev libjsoncpp-dev libedit-dev libz-dev
++.. code-block:: bash
+ 
+-The reason for the change is that ``libjsonrpccpp-dev`` is available in the universe repository for newer versions of Ubuntu.
++    sudo apt-get -y install build-essential git cmake libgmp-dev libboost-all-dev \
++        libjsoncpp-dev libleveldb-dev libcurl4-openssl-dev libminiupnpc-dev \
++        libjsonrpccpp-dev libmicrohttpd-dev
++    
++    # (Option 1) For those willing to add the Ethereum PPA:
++    sudo add-apt-repository -y ppa:ethereum/ethereum
++    sudo add-apt-repository -y ppa:ethereum/ethereum-dev
++    sudo apt-get -y update
++    sudo apt-get -y upgrade
++    sudo apt-get -y install libcryptopp-dev
++    
++    ## (Option 2) For those willing to backport libcrypto++:
++    #sudo apt-get -y install ubuntu-dev-tools
++    #sudo pbuilder create
++    #mkdir ubuntu
++    #cd ubuntu
++    #backportpackage --workdir=. --build --dont-sign libcrypto++
++    #sudo dpkg -i buildresult/libcrypto++6_*.deb buildresult/libcrypto++-dev_*.deb
++    #cd ..
+ 
+ Building
+ --------
+ 
+-Run this if you plan on installing Solidity only, ignore errors at the end as
+-they relate only to Alethzero and Mix
++Run this if you plan on installing Solidity only:
+ 
+ .. code-block:: bash
+ 
+     git clone --recursive https://github.com/ethereum/webthree-umbrella.git
+     cd webthree-umbrella
+     ./webthree-helpers/scripts/ethupdate.sh --no-push --simple-pull --project solidity # update Solidity repo
+-    ./webthree-helpers/scripts/ethbuild.sh --no-git --project solidity --all --cores 4 -DEVMJIT=0 # build Solidity and others
+-                                                                                #enabling DEVMJIT on OS X will not build
+-                                                                                #feel free to enable it on Linux
++    ./webthree-helpers/scripts/ethbuild.sh --no-git --project solidity --cores 4 -DEVMJIT=0 -DETHASHCL=0 # build Solidity only
+ 
+ If you opted to install Alethzero and Mix:
+ 
+diff --git a/docs/introduction-to-smart-contracts.rst b/docs/introduction-to-smart-contracts.rst
+index fe51abe0..0cb2b0d0 100644
+--- a/docs/introduction-to-smart-contracts.rst
++++ b/docs/introduction-to-smart-contracts.rst
+@@ -14,8 +14,6 @@ right now, we will go into more detail later.
+ Storage
+ =======
+ 
+-.. Gist: a4532ce30246847b371b
+-
+ ::
+ 
+     contract SimpleStorage {
+@@ -63,8 +61,6 @@ Furthermore, anyone can send coins to each other without any need for
+ registering with username and password - all you need is an Ethereum keypair.
+ 
+ 
+-.. Gist: ad490694f3e5b3de47ab
+-
+ ::
+ 
+     contract Coin {
+diff --git a/docs/layout-of-source-files.rst b/docs/layout-of-source-files.rst
+index c21e7280..a0170c5a 100644
+--- a/docs/layout-of-source-files.rst
++++ b/docs/layout-of-source-files.rst
+@@ -6,6 +6,8 @@ Source files can contain an arbitrary number of contract definitions and include
+ 
+ .. index:: source file, ! import
+ 
++.. _import:
++
+ Importing other Source Files
+ ============================
+ 
+@@ -68,15 +70,20 @@ remappings so that e.g. ``github.com/ethereum/dapp-bin/library`` is remapped to
+ ``/usr/local/dapp-bin/library`` and the compiler will read the files from there. If
+ remapping keys are prefixes of each other, the longest is tried first. This
+ allows for a "fallback-remapping" with e.g. ``""`` maps to
+-``"/usr/local/include/solidity"``.
++``"/usr/local/include/solidity"``. Furthermore, these remappings can
++depend on the context, which allows you to configure packages to
++import e.g. different versions of a library of the same name.
+ 
+ **solc**:
+ 
+-For solc (the commandline compiler), these remappings are provided as ``key=value``
+-arguments, where the ``=value`` part is optional (and defaults to key in that
++For solc (the commandline compiler), these remappings are provided as
++``context:prefix=target`` arguments, where both the ``context:`` and the
++``=target`` parts are optional (where target defaults to prefix in that
+ case). All remapping values that are regular files are compiled (including
+ their dependencies). This mechanism is completely backwards-compatible (as long
+-as no filename contains a =) and thus not a breaking change.
++as no filename contains = or :) and thus not a breaking change. All imports
++in files in or below the directory ``context`` that import a file that
++starts with ``prefix`` are redirected by replacing ``prefix`` by ``target``.
+ 
+ So as an example, if you clone
+ ``github.com/ethereum/dapp-bin/`` locally to ``/usr/local/dapp-bin``, you can use
+@@ -92,6 +99,19 @@ and then run the compiler as
+ 
+   solc github.com/ethereum/dapp-bin/=/usr/local/dapp-bin/ source.sol
+ 
++As a more complex example, suppose you rely on some module that uses a
++very old version of dapp-bin. That old version of dapp-bin is checked
++out at ``/usr/local/dapp-bin_old``, then you can use 
++
++.. code-block:: bash
++
++  solc module1:github.com/ethereum/dapp-bin/=/usr/local/dapp-bin/ \
++       module2:github.com/ethereum/dapp-bin/=/usr/local/dapp-bin_old/ \
++       source.sol
++
++so that all imports in ``module2`` point to the old version but imports
++in ``module1`` get the new version.
++
+ Note that solc only allows you to include files from certain directories:
+ They have to be in the directory (or subdirectory) of one of the explicitly
+ specified source files or in the directory (or subdirectory) of a remapping
+diff --git a/docs/miscellaneous.rst b/docs/miscellaneous.rst
+index 6b327c56..c9a8890f 100644
+--- a/docs/miscellaneous.rst
++++ b/docs/miscellaneous.rst
+@@ -108,7 +108,7 @@ Using ``solc --help`` provides you with an explanation of all options. The compi
+ If you only want to compile a single file, you run it as ``solc --bin sourceFile.sol`` and it will print the binary. Before you deploy your contract, activate the optimizer while compiling using ``solc --optimize --bin sourceFile.sol``. If you want to get some of the more advanced output variants of ``solc``, it is probably better to tell it to output everything to separate files using ``solc -o outputDirectory --bin --ast --asm sourceFile.sol``.
+ 
+ The commandline compiler will automatically read imported files from the filesystem, but
+-it is also possible to provide path redirects using ``prefix=path`` in the following way:
++it is also possible to provide path redirects using ``context:prefix=path`` in the following way:
+ 
+ ::
+ 
+@@ -121,6 +121,10 @@ always matches). ``solc`` will not read files from the filesystem that lie outsi
+ the remapping targets and outside of the directories where explicitly specified source
+ files reside, so things like ``import "/etc/passwd";`` only work if you add ``=/`` as a remapping.
+ 
++You can restrict remappings to only certain source files by prefixing a context.
++
++The section on :ref:`import` provides more details on remappings.
++
+ If there are multiple matches due to remappings, the one with the longest common prefix is selected.
+ 
+ If your contracts use :ref:`libraries <libraries>`, you will notice that the bytecode contains substrings of the form ``__LibraryName______``. You can use ``solc`` as a linker meaning that it will insert the library addresses for you at those points:
+@@ -148,6 +152,26 @@ Pitfalls
+ Unfortunately, there are some subtleties the compiler does not yet warn you about.
+ 
+ - In ``for (var i = 0; i < arrayName.length; i++) { ... }``, the type of ``i`` will be ``uint8``, because this is the smallest type that is required to hold the value ``0``. If the array has more than 255 elements, the loop will not terminate.
++- If a contract receives Ether (without a function being called), the fallback function is executed. The contract can only rely
++  on the "gas stipend" (2300 gas) being available to it at that time. This stipend is not enough to access storage in any way.
++  To be sure that your contract can receive Ether in that way, check the gas requirements of the fallback function.
++- If you want to send ether using ``address.send``, there are certain details to be aware of:
++
++  1. If the recipient is a contract, it causes its fallback function to be executed which can in turn call back into the sending contract
++  2. Sending Ether can fail due to the call depth going above 1024. Since the caller is in total control of the call
++     depth, they can force the transfer to fail, so make sure to always check the return value of ``send``. Better yet,
++     write your contract using a pattern where the recipient can withdraw Ether instead.
++  3. Sending Ether can also fail because the recipient goes out of gas (either explicitly by using ``throw`` or
++     because the operation is just too expensive). If the return value of ``send`` is checked, this might provide a
++     means for the recipient to block progress in the sending contract. Again, the best practise here is to use
++     a "withdraw" pattern instead of a "send" pattern.
++
++- Loops that do not have a fixed number of iterations, e.g. loops that depends on storage values, have to be used carefully:
++  Due to the block gas limit, transactions can only consume a certain amount of gas. Either explicitly or just due to
++  normal operation, the number of iterations in a loop can grow beyond the block gas limit, which can cause the complete
++  contract to be stalled at a certain point. This does not apply at full extent to ``constant`` functions that are only executed
++  to read data from the blockchain. Still, such functions may be called by other contracts as part of on-chain operations
++  and stall those. Please be explicit about such cases in the documentation of your contracts.
+ 
+ **********
+ Cheatsheet
+@@ -158,11 +182,11 @@ Cheatsheet
+ Global Variables
+ ================
+ 
++- ``block.blockhash(uint blockNumber) returns (bytes32)``: hash of the given block - only works for 256 most recent blocks
+ - ``block.coinbase`` (``address``): current block miner's address
+ - ``block.difficulty`` (``uint``): current block difficulty
+ - ``block.gaslimit`` (``uint``): current block gaslimit
+ - ``block.number`` (``uint``): current block number
+-- ``block.blockhash`` (``function(uint) returns (bytes32)``): hash of the given block - only works for 256 most recent blocks
+ - ``block.timestamp`` (``uint``): current block timestamp
+ - ``msg.data`` (``bytes``): complete calldata
+ - ``msg.gas`` (``uint``): remaining gas
+@@ -171,17 +195,17 @@ Global Variables
+ - ``now`` (``uint``): current block timestamp (alias for ``block.timestamp``)
+ - ``tx.gasprice`` (``uint``): gas price of the transaction
+ - ``tx.origin`` (``address``): sender of the transaction (full call chain)
+-- ``sha3(...) returns (bytes32)``: compute the Ethereum-SHA3 hash of the (tightly packed) arguments
+-- ``sha256(...) returns (bytes32)``: compute the SHA256 hash of the (tightly packed) arguments
+-- ``ripemd160(...) returns (bytes20)``: compute RIPEMD of 256 the (tightly packed) arguments
+-- ``ecrecover(bytes32, uint8, bytes32, bytes32) returns (address)``: recover address associated with the public key from elliptic curve signature
+-- ``addmod(uint x, uint y, uint k) returns (uint)``: compute ``(x + y) % k`` where the addition is performed with arbitrary precision and does not wrap around at ``2**256``.
+-- ``mulmod(uint x, uint y, uint k) returns (uint)``: compute ``(x * y) % k`` where the multiplication is performed with arbitrary precision and does not wrap around at ``2**256``.
++- ``sha3(...) returns (bytes32)``: compute the Ethereum-SHA-3 (KECCAK-256) hash of the (tightly packed) arguments
++- ``sha256(...) returns (bytes32)``: compute the SHA-256 hash of the (tightly packed) arguments
++- ``ripemd160(...) returns (bytes20)``: compute the RIPEMD-160 hash of the (tightly packed) arguments
++- ``ecrecover(bytes32 hash, uint8 v, bytes32 r, bytes32 s) returns (address)``: recover address associated with the public key from elliptic curve signature
++- ``addmod(uint x, uint y, uint k) returns (uint)``: compute ``(x + y) % k`` where the addition is performed with arbitrary precision and does not wrap around at ``2**256``
++- ``mulmod(uint x, uint y, uint k) returns (uint)``: compute ``(x * y) % k`` where the multiplication is performed with arbitrary precision and does not wrap around at ``2**256``
+ - ``this`` (current contract's type): the current contract, explicitly convertible to ``address``
+ - ``super``: the contract one level higher in the inheritance hierarchy
+-- ``selfdestruct(address)``: destroy the current contract, sending its funds to the given address
+-- ``<address>.balance``: balance of the address in Wei
+-- ``<address>.send(uint256) returns (bool)``: send given amount of Wei to address, returns ``false`` on failure.
++- ``selfdestruct(address recipient)``: destroy the current contract, sending its funds to the given address
++- ``<address>.balance`` (``uint256``): balance of the address in Wei
++- ``<address>.send(uint256 amount) returns (bool)``: send given amount of Wei to address, returns ``false`` on failure
+ 
+ .. index:: visibility, public, private, external, internal
+ 
+diff --git a/docs/solidity-by-example.rst b/docs/solidity-by-example.rst
+index 52ce9849..6fa70be4 100644
+--- a/docs/solidity-by-example.rst
++++ b/docs/solidity-by-example.rst
+@@ -34,8 +34,6 @@ At the end of the voting time, ``winningProposal()``
+ will return the proposal with the largest number
+ of votes.
+ 
+-.. Gist: 618560d3f740204d46a5
+-
+ ::
+ 
+     /// @title Voting with delegation.
+@@ -108,9 +106,17 @@ of votes.
+ 
+             // Forward the delegation as long as
+             // `to` also delegated.
+-            while (voters[to].delegate != address(0) &&
+-                   voters[to].delegate != msg.sender) {
+-                       to = voters[to].delegate;
++            // In general, such loops are very dangerous,
++            // because if they run too long, they might
++            // need more gas than is available in a block.
++            // In this case, the delegation will not be executed,
++            // but in other situations, such loops might
++            // cause a contract to get "stuck" completely.
++            while (
++                voters[to].delegate != address(0) &&
++                voters[to].delegate != msg.sender
++            ) {
++                to = voters[to].delegate;
+             }
+ 
+             // We found a loop in the delegation, not allowed.
+@@ -199,8 +205,6 @@ contract has to be called manually for the
+ beneficiary to receive his money - contracts cannot
+ activate themselves.
+ 
+-.. {% include open_link gist="48cd2b65ff83bd04f7af" %}
+-
+ ::
+ 
+     contract SimpleAuction {
+@@ -215,6 +219,9 @@ activate themselves.
+         address public highestBidder;
+         uint public highestBid;
+ 
++        // Allowed withdrawals of previous bids
++        mapping(address => uint) pendingReturns;
++
+         // Set to true at the end, disallows any change
+         bool ended;
+ 
+@@ -258,13 +265,29 @@ activate themselves.
+                 throw;
+             }
+             if (highestBidder != 0) {
+-                highestBidder.send(highestBid);
++                // Sending back the money by simply using
++                // highestBidder.send(highestBid) is a security risk
++                // because it can be prevented by the caller by e.g.
++                // raising the call stack to 1023. It is always safer
++                // to let the recipient withdraw their money themselves. 
++                pendingReturns[highestBidder] += highestBid;
+             }
+             highestBidder = msg.sender;
+             highestBid = msg.value;
+             HighestBidIncreased(msg.sender, msg.value);
+         }
+ 
++        /// Withdraw a bid that was overbid.
++        function withdraw() {
++            var amount = pendingReturns[msg.sender];
++            // It is important to set this to zero because the recipient
++            // can call this function again as part of the receiving call
++            // before `send` returns.
++            pendingReturns[msg.sender] = 0;
++            if (!msg.sender.send(amount))
++                throw; // If anything fails, this will revert the changes above
++        }
++
+         /// End the auction and send the highest bid
+         /// to the beneficiary.
+         function auctionEnd() {
+@@ -274,9 +297,8 @@ activate themselves.
+                 throw; // this function has already been called
+             AuctionEnded(highestBidder, highestBid);
+ 
+-            // We send all the money we have, because some
+-            // of the refunds might have failed.
+-            beneficiary.send(this.balance);
++            if (!beneficiary.send(highestBid))
++                throw;
+             ended = true;
+         }
+ 
+@@ -328,8 +350,6 @@ Bidders can confuse competition by placing several
+ high or low invalid bids.
+ 
+ 
+-.. {% include open_link gist="70528429c2cd867dd1d6" %}
+-
+ ::
+ 
+     contract BlindAuction {
+@@ -349,6 +369,9 @@ high or low invalid bids.
+         address public highestBidder;
+         uint public highestBid;
+ 
++        // Allowed withdrawals of previous bids
++        mapping(address => uint) pendingReturns;
++
+         event AuctionEnded(address winner, uint highestBid);
+ 
+         /// Modifiers are a convenient way to validate inputs to
+@@ -426,7 +449,8 @@ high or low invalid bids.
+                 // the same deposit.
+                 bid.blindedBid = 0;
+             }
+-            msg.sender.send(refund);
++            if (!msg.sender.send(refund))
++                throw;
+         }
+ 
+         // This is an "internal" function which means that it
+@@ -440,13 +464,24 @@ high or low invalid bids.
+             }
+             if (highestBidder != 0) {
+                 // Refund the previously highest bidder.
+-                highestBidder.send(highestBid);
++                pendingReturns[highestBidder] += highestBid;
+             }
+             highestBid = value;
+             highestBidder = bidder;
+             return true;
+         }
+ 
++        /// Withdraw a bid that was overbid.
++        function withdraw() {
++            var amount = pendingReturns[msg.sender];
++            // It is important to set this to zero because the recipient
++            // can call this function again as part of the receiving call
++            // before `send` returns.
++            pendingReturns[msg.sender] = 0;
++            if (!msg.sender.send(amount))
++                throw; // If anything fails, this will revert the changes above
++        }
++
+         /// End the auction and send the highest bid
+         /// to the beneficiary.
+         function auctionEnd()
+@@ -457,7 +492,8 @@ high or low invalid bids.
+             AuctionEnded(highestBidder, highestBid);
+             // We send all the money we have, because some
+             // of the refunds might have failed.
+-            beneficiary.send(this.balance);
++            if (!beneficiary.send(this.balance))
++                throw;
+             ended = true;
+         }
+ 
+@@ -472,8 +508,6 @@ high or low invalid bids.
+ Safe Remote Purchase
+ ********************
+ 
+-.. {% include open_link gist="b16e8e76a423b7671e99" %}
+-
+ ::
+ 
+     contract Purchase {
+@@ -521,8 +555,9 @@ Safe Remote Purchase
+             inState(State.Created)
+         {
+             aborted();
+-            seller.send(this.balance);
+             state = State.Inactive;
++            if (!seller.send(this.balance))
++                throw;
+         }
+ 
+         /// Confirm the purchase as buyer.
+@@ -545,9 +580,14 @@ Safe Remote Purchase
+             inState(State.Locked)
+         {
+             itemReceived();
+-            buyer.send(value); // We ignore the return value on purpose
+-            seller.send(this.balance);
++            // It is important to change the state first because
++            // otherwise, the contracts called using `send` below
++            // can call in again here.
+             state = State.Inactive;
++            // This actually allows both the buyer and the seller to
++            // block the refund.
++            if (!buyer.send(value) || !seller.send(this.balance))
++                throw;
+         }
+ 
+         function() {
+diff --git a/docs/types.rst b/docs/types.rst
+index 1d027d23..9de83843 100644
+--- a/docs/types.rst
++++ b/docs/types.rst
+@@ -72,6 +72,8 @@ Members of Addresses
+ 
+ * ``balance`` and ``send``
+ 
++For a quick reference, see :ref:`address_related`.
++
+ It is possible to query the balance of an address using the property ``balance``
+ and to send Ether (in units of wei) to an address using the ``send`` function:
+ 
+@@ -84,6 +86,12 @@ and to send Ether (in units of wei) to an address using the ``send`` function:
+ .. note::
+     If ``x`` is a contract address, its code (more specifically: its fallback function, if present) will be executed together with the ``send`` call (this is a limitation of the EVM and cannot be prevented). If that execution runs out of gas or fails in any way, the Ether transfer will be reverted. In this case, ``send`` returns ``false``.
+ 
++.. warning::
++    There are some dangers in using ``send``: The transfer fails if the call stack depth is at 1024
++    (this can always be forced by the caller) and it also fails if the recipient runs out of gas. So in order
++    to make safe Ether transfers, always check the return value of ``send`` or even better:
++    Use a pattern where the recipient withdraws the money.
++
+ * ``call``, ``callcode`` and ``delegatecall``
+ 
+ Furthermore, to interface with contracts that do not adhere to the ABI,
+@@ -95,7 +103,7 @@ the function ``call`` is provided which takes an arbitrary number of arguments o
+     nameReg.call("register", "MyName");
+     nameReg.call(bytes4(sha3("fun(uint256)")), a);
+ 
+-``call`` returns a boolean indicating whether the invoked function terminated (``true``) or caused an EVM exception (`false:code:`). It is not possible to access the actual data returned (for this we would need to know the encoding and size in advance).
++``call`` returns a boolean indicating whether the invoked function terminated (``true``) or caused an EVM exception (``false``). It is not possible to access the actual data returned (for this we would need to know the encoding and size in advance).
+ 
+ In a similar way, the function ``delegatecall`` can be used: The difference is that only the code of the given address is used, all other aspects (storage, balance, ...) are taken from the current contract. The purpose of ``delegatecall`` is to use library code which is stored in another contract. The user has to ensure that the layout of storage in both contracts is suitable for delegatecall to be used. Prior to homestead, only a limited variant called ``callcode`` was available that did not provide access to the original ``msg.sender`` and ``msg.value`` values.
+ 
+@@ -356,6 +364,44 @@ the ``.length`` member.
+         }
+     }
+ 
++.. index:: ! array;literals, !inline;arrays
++
++Array Literals / Inline Arrays
++^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++
++Array literals are arrays that are written as an expression and are not
++assigned to a variable right away.
++
++::
++
++    contract C {
++        function f() {
++            g([uint(1), 2, 3]);
++        }
++        function g(uint[3] _data) {
++            // ...
++        }
++    }
++
++The type of an array literal is a memory array of fixed size whose base
++type is the common type of the given elements. The type of ``[1, 2, 3]`` is
++``uint8[3] memory``, because the type of each of these constants is ``uint8``.
++Because of that, it was necessary to convert the first element in the example
++above to ``uint``. Note that currently, fixed size memory arrays cannot
++be assigned to dynamically-sized memory arrays, i.e. the following is not
++possible:
++
++::
++
++    contract C {
++        function f() {
++            // The next line creates a type error because uint[3] memory
++            // cannot be converted to uint[] memory.
++            uint[] x = [uint(1), 3, 4];
++    }
++
++It is planned to remove this restriction in the future but currently creates
++some complications because of how arrays are passed in the ABI.
+ 
+ .. index:: ! array;length, length, push, !array;push
+ 
+@@ -616,10 +662,10 @@ For convenience, it is not always necessary to explicitly specify the type of a
+ variable, the compiler automatically infers it from the type of the first
+ expression that is assigned to the variable::
+ 
+-    uint20 x = 0x123;
++    uint24 x = 0x123;
+     var y = x;
+ 
+-Here, the type of ``y`` will be ``uint20``. Using ``var`` is not possible for function
++Here, the type of ``y`` will be ``uint24``. Using ``var`` is not possible for function
+ parameters or return parameters.
+ 
+ .. warning::
+diff --git a/docs/units-and-global-variables.rst b/docs/units-and-global-variables.rst
+index 8f910c80..167c694d 100644
+--- a/docs/units-and-global-variables.rst
++++ b/docs/units-and-global-variables.rst
+@@ -48,22 +48,22 @@ namespace and are mainly used to provide information about the blockchain.
+ 
+ 
+ Block and Transaction Properties
+-------------------------------------
+-
+- - ``block.coinbase`` (``address``): current block miner's address
+- - ``block.difficulty`` (``uint``): current block difficulty
+- - ``block.gaslimit`` (``uint``): current block gaslimit
+- - ``block.number`` (``uint``): current block number
+- - ``block.blockhash`` (``function(uint) returns (bytes32)``): hash of the given block - only for 256 most recent blocks
+- - ``block.timestamp`` (``uint``): current block timestamp
+- - ``msg.data`` (``bytes``): complete calldata
+- - ``msg.gas`` (``uint``): remaining gas
+- - ``msg.sender`` (``address``): sender of the message (current call)
+- - ``msg.sig`` (``bytes4``): first four bytes of the calldata (i.e. function identifier)
+- - ``msg.value`` (``uint``): number of wei sent with the message
+- - ``now`` (``uint``): current block timestamp (alias for ``block.timestamp``)
+- - ``tx.gasprice`` (``uint``): gas price of the transaction
+- - ``tx.origin`` (``address``): sender of the transaction (full call chain)
++--------------------------------
++
++- ``block.blockhash(uint blockNumber) returns (bytes32)``: hash of the given block - only works for 256 most recent blocks
++- ``block.coinbase`` (``address``): current block miner's address
++- ``block.difficulty`` (``uint``): current block difficulty
++- ``block.gaslimit`` (``uint``): current block gaslimit
++- ``block.number`` (``uint``): current block number
++- ``block.timestamp`` (``uint``): current block timestamp
++- ``msg.data`` (``bytes``): complete calldata
++- ``msg.gas`` (``uint``): remaining gas
++- ``msg.sender`` (``address``): sender of the message (current call)
++- ``msg.sig`` (``bytes4``): first four bytes of the calldata (i.e. function identifier)
++- ``msg.value`` (``uint``): number of wei sent with the message
++- ``now`` (``uint``): current block timestamp (alias for ``block.timestamp``)
++- ``tx.gasprice`` (``uint``): gas price of the transaction
++- ``tx.origin`` (``address``): sender of the transaction (full call chain)
+ 
+ .. note::
+     The values of all members of ``msg``, including ``msg.sender`` and
+@@ -89,12 +89,12 @@ Mathematical and Cryptographic Functions
+ ``mulmod(uint x, uint y, uint k) returns (uint)``:
+     compute ``(x * y) % k`` where the multiplication is performed with arbitrary precision and does not wrap around at ``2**256``.
+ ``sha3(...) returns (bytes32)``:
+-    compute the Ethereum-SHA-3 hash of the (tightly packed) arguments
++    compute the Ethereum-SHA-3 (KECCAK-256) hash of the (tightly packed) arguments
+ ``sha256(...) returns (bytes32)``:
+     compute the SHA-256 hash of the (tightly packed) arguments
+ ``ripemd160(...) returns (bytes20)``:
+     compute RIPEMD-160 hash of the (tightly packed) arguments
+-``ecrecover(bytes32 data, uint8 v, bytes32 r, bytes32 s) returns (address)``:
++``ecrecover(bytes32 hash, uint8 v, bytes32 r, bytes32 s) returns (address)``:
+     recover the address associated with the public key from elliptic curve signature
+ 
+ In the above, "tightly packed" means that the arguments are concatenated without padding.
+@@ -111,6 +111,24 @@ same as ``sha3(uint16(0x12))``.
+ 
+ It might be that you run into Out-of-Gas for ``sha256``, ``ripemd160`` or ``ecrecover`` on a *private blockchain*. The reason for this is that those are implemented as so-called precompiled contracts and these contracts only really exist after they received the first message (although their contract code is hardcoded). Messages to non-existing contracts are more expensive and thus the execution runs into an Out-of-Gas error. A workaround for this problem is to first send e.g. 1 Wei to each of the contracts before you use them in your actual contracts. This is not an issue on the official or test net.
+ 
++.. _address_related:
++
++Address Related
++---------------
++
++``<address>.balance`` (``uint256``):
++    balance of the :ref:`address` in Wei
++``<address>.send(uint256 amount) returns (bool)``:
++    send given amount of Wei to :ref:`address`, returns ``false`` on failure
++
++For more information, see the section on :ref:`address`.
++
++.. warning::
++    There are some dangers in using ``send``: The transfer fails if the call stack depth is at 1024
++    (this can always be forced by the caller) and it also fails if the recipient runs out of gas. So in order
++    to make safe Ether transfers, always check the return value of ``send`` or even better:
++    Use a pattern where the recipient withdraws the money.
++
+ .. index:: this, selfdestruct
+ 
+ Contract Related
+@@ -119,7 +137,7 @@ Contract Related
+ ``this`` (current contract's type):
+     the current contract, explicitly convertible to :ref:`address`
+ 
+-``selfdestruct(address)``:
++``selfdestruct(address recipient)``:
+     destroy the current contract, sending its funds to the given :ref:`address`
+ 
+ Furthermore, all functions of the current contract are callable directly including the current function.
+diff --git a/libevmasm/SourceLocation.h b/libevmasm/SourceLocation.h
+index 8e22a826..05304d14 100644
+--- a/libevmasm/SourceLocation.h
++++ b/libevmasm/SourceLocation.h
+@@ -45,7 +45,7 @@ struct SourceLocation
+ 		end(_other.end),
+ 		sourceName(std::move(_other.sourceName))
+ 	{}
+-	SourceLocation(SourceLocation const& _other) = default;
++	SourceLocation(SourceLocation const&) = default;
+ 	SourceLocation& operator=(SourceLocation const&) = default;
+ 	SourceLocation& operator=(SourceLocation&& _other) noexcept
+ 	{
+diff --git a/libsolidity/analysis/TypeChecker.cpp b/libsolidity/analysis/TypeChecker.cpp
+index 5ae0443a..ce55de00 100644
+--- a/libsolidity/analysis/TypeChecker.cpp
++++ b/libsolidity/analysis/TypeChecker.cpp
+@@ -32,7 +32,7 @@ using namespace dev;
+ using namespace dev::solidity;
+ 
+ 
+-bool TypeChecker::checkTypeRequirements(const ContractDefinition& _contract)
++bool TypeChecker::checkTypeRequirements(ContractDefinition const& _contract)
+ {
+ 	try
+ 	{
+@@ -174,6 +174,9 @@ void TypeChecker::checkContractAbstractFunctions(ContractDefinition const& _cont
+ 	for (ContractDefinition const* contract: boost::adaptors::reverse(_contract.annotation().linearizedBaseContracts))
+ 		for (FunctionDefinition const* function: contract->definedFunctions())
+ 		{
++			// Take constructors out of overload hierarchy
++			if (function->isConstructor())
++				continue;
+ 			auto& overloads = functions[function->name()];
+ 			FunctionTypePointer funType = make_shared<FunctionType>(*function);
+ 			auto it = find_if(overloads.begin(), overloads.end(), [&](FunTypeAndFlag const& _funAndFlag)
+diff --git a/libsolidity/ast/Types.cpp b/libsolidity/ast/Types.cpp
+index e964d683..5630743b 100644
+--- a/libsolidity/ast/Types.cpp
++++ b/libsolidity/ast/Types.cpp
+@@ -2037,29 +2037,20 @@ FunctionTypePointer FunctionType::asMemberFunction(bool _inLibrary, bool _bound)
+ 			location = Location::DelegateCall;
+ 	}
+ 
+-	TypePointers returnParameterTypes;
+-	vector<string> returnParameterNames;
+-	if (location == Location::Internal)
++	TypePointers returnParameterTypes = m_returnParameterTypes;
++	if (location != Location::Internal)
+ 	{
+-		returnParameterNames = m_returnParameterNames;
+-		returnParameterTypes = m_returnParameterTypes;
+-	}
+-	else
+-	{
+-		// Removes dynamic types.
+-		for (size_t i = 0; i < m_returnParameterTypes.size(); ++i)
+-			if (!m_returnParameterTypes[i]->isDynamicallySized())
+-			{
+-				returnParameterTypes.push_back(m_returnParameterTypes[i]);
+-				returnParameterNames.push_back(m_returnParameterNames[i]);
+-			}
++		// Alter dynamic types to be non-accessible.
++		for (auto& param: returnParameterTypes)
++			if (param->isDynamicallySized())
++				param = make_shared<InaccessibleDynamicType>();
+ 	}
+ 
+ 	return make_shared<FunctionType>(
+ 		parameterTypes,
+ 		returnParameterTypes,
+ 		m_parameterNames,
+-		returnParameterNames,
++		m_returnParameterNames,
+ 		location,
+ 		m_arbitraryParameters,
+ 		m_declaration,
+diff --git a/libsolidity/ast/Types.h b/libsolidity/ast/Types.h
+index 967e968c..1ee762e5 100644
+--- a/libsolidity/ast/Types.h
++++ b/libsolidity/ast/Types.h
+@@ -137,7 +137,8 @@ public:
+ 	{
+ 		Integer, RationalNumber, StringLiteral, Bool, FixedPoint, Array,
+ 		FixedBytes, Contract, Struct, Function, Enum, Tuple,
+-		Mapping, TypeType, Modifier, Magic, Module
++		Mapping, TypeType, Modifier, Magic, Module,
++		InaccessibleDynamic
+ 	};
+ 
+ 	/// @{
+@@ -1081,5 +1082,25 @@ private:
+ 	Kind m_kind;
+ };
+ 
++/**
++ * Special type that is used for dynamic types in returns from external function calls
++ * (The EVM currently cannot access dynamically-sized return values).
++ */
++class InaccessibleDynamicType: public Type
++{
++public:
++	virtual Category category() const override { return Category::InaccessibleDynamic; }
++
++	virtual bool isImplicitlyConvertibleTo(Type const&) const override { return false; }
++	virtual bool isExplicitlyConvertibleTo(Type const&) const override { return false; }
++	virtual unsigned calldataEncodedSize(bool _padded) const override { (void)_padded; return 32; }
++	virtual bool canBeStored() const override { return false; }
++	virtual bool canLiveOutsideStorage() const override { return false; }
++	virtual bool isValueType() const override { return true; }
++	virtual unsigned sizeOnStack() const override { return 1; }
++	virtual std::string toString(bool) const override { return "inaccessible dynamic type"; }
++	virtual TypePointer decodingType() const override { return std::make_shared<IntegerType>(256); }
++};
++
+ }
+ }
+diff --git a/libsolidity/codegen/ContractCompiler.cpp b/libsolidity/codegen/ContractCompiler.cpp
+index 3623046e..bcfd33f2 100644
+--- a/libsolidity/codegen/ContractCompiler.cpp
++++ b/libsolidity/codegen/ContractCompiler.cpp
+@@ -776,7 +776,10 @@ void ContractCompiler::appendModifierOrFunctionCode()
+ {
+ 	solAssert(m_currentFunction, "");
+ 	if (m_modifierDepth >= m_currentFunction->modifiers().size())
++	{
++		solAssert(m_currentFunction->isImplemented(), "");
+ 		m_currentFunction->body().accept(*this);
++	}
+ 	else
+ 	{
+ 		ASTPointer<ModifierInvocation> const& modifierInvocation = m_currentFunction->modifiers()[m_modifierDepth];
+diff --git a/libsolidity/codegen/ExpressionCompiler.cpp b/libsolidity/codegen/ExpressionCompiler.cpp
+index 16677093..b973a117 100644
+--- a/libsolidity/codegen/ExpressionCompiler.cpp
++++ b/libsolidity/codegen/ExpressionCompiler.cpp
+@@ -1360,6 +1360,8 @@ void ExpressionCompiler::appendShiftOperatorCode(Token::Value _operator)
+ 		break;
+ 	case Token::SAR:
+ 		break;
++	case Token::SHR:
++		break;
+ 	default:
+ 		BOOST_THROW_EXCEPTION(InternalCompilerError() << errinfo_comment("Unknown shift operator."));
+ 	}
+diff --git a/libsolidity/interface/CompilerStack.cpp b/libsolidity/interface/CompilerStack.cpp
+index 83459183..c28e926b 100644
+--- a/libsolidity/interface/CompilerStack.cpp
++++ b/libsolidity/interface/CompilerStack.cpp
+@@ -63,6 +63,24 @@ CompilerStack::CompilerStack(bool _addStandardSources, ReadFileCallback const& _
+ 		addSources(StandardSources, true); // add them as libraries
+ }
+ 
++void CompilerStack::setRemappings(vector<string> const& _remappings)
++{
++	vector<Remapping> remappings;
++	for (auto const& remapping: _remappings)
++	{
++		auto eq = find(remapping.begin(), remapping.end(), '=');
++		if (eq == remapping.end())
++			continue; // ignore
++		auto colon = find(remapping.begin(), eq, ':');
++		Remapping r;
++		r.context = colon == eq ? string() : string(remapping.begin(), colon);
++		r.prefix = colon == eq ? string(remapping.begin(), eq) : string(colon + 1, eq);
++		r.target = string(eq + 1, remapping.end());
++		remappings.push_back(r);
++	}
++	swap(m_remappings, remappings);
++}
++
+ void CompilerStack::reset(bool _keepSources, bool _addStandardSources)
+ {
+ 	m_parseSuccessful = false;
+@@ -384,37 +402,72 @@ tuple<int, int, int, int> CompilerStack::positionFromSourceLocation(SourceLocati
+ 	return make_tuple(++startLine, ++startColumn, ++endLine, ++endColumn);
+ }
+ 
+-StringMap CompilerStack::loadMissingSources(SourceUnit const& _ast, std::string const& _path)
++StringMap CompilerStack::loadMissingSources(SourceUnit const& _ast, std::string const& _sourcePath)
+ {
+ 	StringMap newSources;
+ 	for (auto const& node: _ast.nodes())
+ 		if (ImportDirective const* import = dynamic_cast<ImportDirective*>(node.get()))
+ 		{
+-			string path = absolutePath(import->path(), _path);
+-			import->annotation().absolutePath = path;
+-			if (m_sources.count(path) || newSources.count(path))
++			string importPath = absolutePath(import->path(), _sourcePath);
++			// The current value of `path` is the absolute path as seen from this source file.
++			// We first have to apply remappings before we can store the actual absolute path
++			// as seen globally.
++			importPath = applyRemapping(importPath, _sourcePath);
++			import->annotation().absolutePath = importPath;
++			if (m_sources.count(importPath) || newSources.count(importPath))
+ 				continue;
+-			string contents;
+-			string errorMessage;
+-			if (!m_readFile)
+-				errorMessage = "File not supplied initially.";
++
++			ReadFileResult result{false, string("File not supplied initially.")};
++			if (m_readFile)
++				result = m_readFile(importPath);
++
++			if (result.success)
++				newSources[importPath] = result.contentsOrErrorMesage;
+ 			else
+-				tie(contents, errorMessage) = m_readFile(path);
+-			if (!errorMessage.empty())
+ 			{
+ 				auto err = make_shared<Error>(Error::Type::ParserError);
+ 				*err <<
+ 					errinfo_sourceLocation(import->location()) <<
+-					errinfo_comment("Source not found: " + errorMessage);
++					errinfo_comment("Source \"" + importPath + "\" not found: " + result.contentsOrErrorMesage);
+ 				m_errors.push_back(std::move(err));
+ 				continue;
+ 			}
+-			else
+-				newSources[path] = contents;
+ 		}
+ 	return newSources;
+ }
+ 
++string CompilerStack::applyRemapping(string const& _path, string const& _context)
++{
++	// Try to find the longest prefix match in all remappings that are active in the current context.
++	auto isPrefixOf = [](string const& _a, string const& _b)
++	{
++		if (_a.length() > _b.length())
++			return false;
++		return std::equal(_a.begin(), _a.end(), _b.begin());
++	};
++
++	size_t longestPrefix = 0;
++	string longestPrefixTarget;
++	for (auto const& redir: m_remappings)
++	{
++		// Skip if we already have a closer match.
++		if (longestPrefix > 0 && redir.prefix.length() <= longestPrefix)
++			continue;
++		// Skip if redir.context is not a prefix of _context
++		if (!isPrefixOf(redir.context, _context))
++			continue;
++		// Skip if the prefix does not match.
++		if (!isPrefixOf(redir.prefix, _path))
++			continue;
++
++		longestPrefix = redir.prefix.length();
++		longestPrefixTarget = redir.target;
++	}
++	string path = longestPrefixTarget;
++	path.append(_path.begin() + longestPrefix, _path.end());
++	return path;
++}
++
+ void CompilerStack::resolveImports()
+ {
+ 	// topological sorting (depth first search) of the import graph, cutting potential cycles
+diff --git a/libsolidity/interface/CompilerStack.h b/libsolidity/interface/CompilerStack.h
+index c7f98184..e111c982 100644
+--- a/libsolidity/interface/CompilerStack.h
++++ b/libsolidity/interface/CompilerStack.h
+@@ -75,15 +75,23 @@ enum class DocumentationType: uint8_t
+ class CompilerStack: boost::noncopyable
+ {
+ public:
+-	/// File reading callback, should return a pair of content and error message (exactly one nonempty)
+-	/// for a given path.
+-	using ReadFileCallback = std::function<std::pair<std::string, std::string>(std::string const&)>;
++	struct ReadFileResult
++	{
++		bool success;
++		std::string contentsOrErrorMesage;
++	};
++
++	/// File reading callback.
++	using ReadFileCallback = std::function<ReadFileResult(std::string const&)>;
+ 
+ 	/// Creates a new compiler stack.
+ 	/// @param _readFile callback to used to read files for import statements. Should return
+ 	/// @param _addStandardSources Adds standard sources if @a _addStandardSources.
+ 	explicit CompilerStack(bool _addStandardSources = true, ReadFileCallback const& _readFile = ReadFileCallback());
+ 
++	/// Sets path remappings in the format "context:prefix=target"
++	void setRemappings(std::vector<std::string> const& _remappings);
++
+ 	/// Resets the compiler to a state where the sources are not parsed or even removed.
+ 	void reset(bool _keepSources = false, bool _addStandardSources = true);
+ 
+@@ -209,6 +217,7 @@ private:
+ 	/// @a m_readFile and stores the absolute paths of all imports in the AST annotations.
+ 	/// @returns the newly loaded sources.
+ 	StringMap loadMissingSources(SourceUnit const& _ast, std::string const& _path);
++	std::string applyRemapping(std::string const& _path, std::string const& _context);
+ 	void resolveImports();
+ 	/// Checks whether there are libraries with the same name, reports that as an error and
+ 	/// @returns false in this case.
+@@ -226,7 +235,17 @@ private:
+ 	Contract const& contract(std::string const& _contractName = "") const;
+ 	Source const& source(std::string const& _sourceName = "") const;
+ 
++	struct Remapping
++	{
++		std::string context;
++		std::string prefix;
++		std::string target;
++	};
++
+ 	ReadFileCallback m_readFile;
++	/// list of path prefix remappings, e.g. mylibrary: github.com/ethereum = /usr/local/ethereum
++	/// "context:prefix=target"
++	std::vector<Remapping> m_remappings;
+ 	bool m_parseSuccessful;
+ 	std::map<std::string const, Source> m_sources;
+ 	std::shared_ptr<GlobalContext> m_globalContext;
+diff --git a/libsolidity/parsing/Token.h b/libsolidity/parsing/Token.h
+index f28df8bf..703e88f6 100644
+--- a/libsolidity/parsing/Token.h
++++ b/libsolidity/parsing/Token.h
+@@ -275,7 +275,7 @@ public:
+ 		return Value(op + (BitOr - AssignBitOr));
+ 	}
+ 
+-	static bool isBitOp(Value op) { return (BitOr <= op && op <= SHR) || op == BitNot; }
++	static bool isBitOp(Value op) { return (BitOr <= op && op <= BitAnd) || op == BitNot; }
+ 	static bool isBooleanOp(Value op) { return (Or <= op && op <= And) || op == Not; }
+ 	static bool isUnaryOp(Value op) { return (Not <= op && op <= Delete) || op == Add || op == Sub || op == After; }
+ 	static bool isCountOp(Value op) { return op == Inc || op == Dec; }
+diff --git a/solc/CommandLineInterface.cpp b/solc/CommandLineInterface.cpp
+index 21624b3b..571ea2da 100644
+--- a/solc/CommandLineInterface.cpp
++++ b/solc/CommandLineInterface.cpp
+@@ -318,36 +318,31 @@ void CommandLineInterface::readInputFilesAndConfigureRemappings()
+ 		}
+ 	}
+ 	else
+-		for (string const& infile: m_args["input-file"].as<vector<string>>())
++		for (string path: m_args["input-file"].as<vector<string>>())
+ 		{
+-			auto eq = find(infile.begin(), infile.end(), '=');
+-			if (eq != infile.end())
+-			{
+-				string target(eq + 1, infile.end());
+-				m_remappings.push_back(make_pair(string(infile.begin(), eq), target));
+-				m_allowedDirectories.push_back(boost::filesystem::path(target).remove_filename());
+-			}
++			auto eq = find(path.begin(), path.end(), '=');
++			if (eq != path.end())
++				path = string(eq + 1, path.end());
+ 			else
+ 			{
+-				auto path = boost::filesystem::path(infile);
+-				if (!boost::filesystem::exists(path))
++				auto infile = boost::filesystem::path(path);
++				if (!boost::filesystem::exists(infile))
+ 				{
+ 					cerr << "Skipping non existant input file \"" << infile << "\"" << endl;
+ 					continue;
+ 				}
+ 
+-				if (!boost::filesystem::is_regular_file(path))
++				if (!boost::filesystem::is_regular_file(infile))
+ 				{
+ 					cerr << "\"" << infile << "\" is not a valid file. Skipping" << endl;
+ 					continue;
+ 				}
+ 
+-				m_sourceCodes[path.string()] = dev::contentsString(path.string());
+-				m_allowedDirectories.push_back(boost::filesystem::canonical(path).remove_filename());
++				m_sourceCodes[infile.string()] = dev::contentsString(infile.string());
++				path = boost::filesystem::canonical(infile).string();
+ 			}
++			m_allowedDirectories.push_back(boost::filesystem::path(path).remove_filename());
+ 		}
+-	// Add empty remapping to try the path itself.
+-	m_remappings.push_back(make_pair(string(), string()));
+ }
+ 
+ bool CommandLineInterface::parseLibraryOption(string const& _input)
+@@ -534,67 +529,42 @@ bool CommandLineInterface::processInput()
+ 		return link();
+ 	}
+ 
+-	function<pair<string,string>(string const&)> fileReader = [this](string const& _path)
++	CompilerStack::ReadFileCallback fileReader = [this](string const& _path)
+ 	{
+-		// Try to find the longest prefix match in all remappings. At the end, there will bean
+-		// empty remapping so that we also try the path itself, but any file should be either
+-		// in (a subdirectory of) the directory of an explicit source or a remapping target.
+-		int errorLevel = 0;
+-		size_t longestPrefix = 0;
+-		string bestMatchPath;
+-		for (auto const& redir: m_remappings)
++		auto boostPath = boost::filesystem::path(_path);
++		if (!boost::filesystem::exists(boostPath))
++			return CompilerStack::ReadFileResult{false, "File not found."};
++		boostPath = boost::filesystem::canonical(boostPath);
++		bool isAllowed = false;
++		for (auto const& allowedDir: m_allowedDirectories)
+ 		{
+-			auto const& virt = redir.first;
+-			if (longestPrefix > 0 && virt.length() <= longestPrefix)
+-				continue;
+-			if (virt.length() > _path.length() || !std::equal(virt.begin(), virt.end(), _path.begin()))
+-				continue;
+-			string path = redir.second;
+-			path.append(_path.begin() + virt.length(), _path.end());
+-			auto boostPath = boost::filesystem::path(path);
+-			if (!boost::filesystem::exists(boostPath))
++			// If dir is a prefix of boostPath, we are fine.
++			if (
++				std::distance(allowedDir.begin(), allowedDir.end()) <= std::distance(boostPath.begin(), boostPath.end()) &&
++				std::equal(allowedDir.begin(), allowedDir.end(), boostPath.begin())
++			)
+ 			{
+-				errorLevel = max(errorLevel, 0);
+-				continue;
+-			}
+-			boostPath = boost::filesystem::canonical(boostPath);
+-			bool isAllowed = false;
+-			for (auto const& dir: m_allowedDirectories)
+-			{
+-				// If dir is a prefix of boostPath, we are fine.
+-				if (
+-					std::distance(dir.begin(), dir.end()) <= std::distance(boostPath.begin(), boostPath.end()) &&
+-					std::equal(dir.begin(), dir.end(), boostPath.begin())
+-				)
+-				{
+-					isAllowed = true;
+-					break;
+-				}
+-			}
+-			if (!isAllowed)
+-				errorLevel = max(errorLevel, 2);
+-			else if (!boost::filesystem::is_regular_file(boostPath))
+-				errorLevel = max(errorLevel, 1);
+-			else
+-			{
+-				longestPrefix = virt.length();
+-				bestMatchPath = path;
++				isAllowed = true;
++				break;
+ 			}
+ 		}
+-		if (!bestMatchPath.empty())
+-			return make_pair(m_sourceCodes[bestMatchPath] = dev::contentsString(bestMatchPath), string());
+-		if (errorLevel == 0)
+-			return make_pair(string(), string("File not found."));
+-		else if (errorLevel == 1)
+-			return make_pair(string(), string("Not a valid file."));
++		if (!isAllowed)
++			return CompilerStack::ReadFileResult{false, "File outside of allowed directories."};
++		else if (!boost::filesystem::is_regular_file(boostPath))
++			return CompilerStack::ReadFileResult{false, "Not a valid file."};
+ 		else
+-			return make_pair(string(), string("File outside of allowed directories."));
++		{
++			auto contents = dev::contentsString(boostPath.string());
++			m_sourceCodes[boostPath.string()] = contents;
++			return CompilerStack::ReadFileResult{true, contents};
++		}
+ 	};
+ 
+ 	m_compiler.reset(new CompilerStack(m_args.count(g_argAddStandard) > 0, fileReader));
+ 	auto scannerFromSourceName = [&](string const& _sourceName) -> solidity::Scanner const& { return m_compiler->scanner(_sourceName); };
+ 	try
+ 	{
++		m_compiler->setRemappings(m_args["input-file"].as<vector<string>>());
+ 		for (auto const& sourceCode: m_sourceCodes)
+ 			m_compiler->addSource(sourceCode.first, sourceCode.second);
+ 		// TODO: Perhaps we should not compile unless requested
+diff --git a/solc/CommandLineInterface.h b/solc/CommandLineInterface.h
+index 52854bac..e240fe96 100644
+--- a/solc/CommandLineInterface.h
++++ b/solc/CommandLineInterface.h
+@@ -85,8 +85,6 @@ private:
+ 	boost::program_options::variables_map m_args;
+ 	/// map of input files to source code strings
+ 	std::map<std::string, std::string> m_sourceCodes;
+-	/// list of path prefix remappings, e.g. github.com/ethereum -> /usr/local/ethereum
+-	std::vector<std::pair<std::string, std::string>> m_remappings;
+ 	/// list of allowed directories to read files from
+ 	std::vector<boost::filesystem::path> m_allowedDirectories;
+ 	/// map of library names to addresses
+diff --git a/solc/jsonCompiler.cpp b/solc/jsonCompiler.cpp
+index eaf83705..e8f674a0 100644
+--- a/solc/jsonCompiler.cpp
++++ b/solc/jsonCompiler.cpp
+@@ -132,26 +132,31 @@ string compile(StringMap const& _sources, bool _optimize, CStyleReadFileCallback
+ 	CompilerStack::ReadFileCallback readCallback;
+ 	if (_readCallback)
+ 	{
+-		readCallback = [=](string const& _path) -> pair<string, string>
++		readCallback = [=](string const& _path)
+ 		{
+ 			char* contents_c = nullptr;
+ 			char* error_c = nullptr;
+ 			_readCallback(_path.c_str(), &contents_c, &error_c);
+-			string contents;
+-			string error;
++			CompilerStack::ReadFileResult result;
++			result.success = true;
+ 			if (!contents_c && !error_c)
+-				error = "File not found.";
++			{
++				result.success = false;
++				result.contentsOrErrorMesage = "File not found.";
++			}
+ 			if (contents_c)
+ 			{
+-				contents = string(contents_c);
++				result.success = true;
++				result.contentsOrErrorMesage = string(contents_c);
+ 				free(contents_c);
+ 			}
+ 			if (error_c)
+ 			{
+-				error = string(error_c);
++				result.success = false;
++				result.contentsOrErrorMesage = string(error_c);
+ 				free(error_c);
+ 			}
+-			return make_pair(move(contents), move(error));
++			return result;
+ 		};
+ 	}
+ 	CompilerStack compiler(true, readCallback);
+diff --git a/test/CMakeLists.txt b/test/CMakeLists.txt
+index 9d958b16..ed53ce59 100644
+--- a/test/CMakeLists.txt
++++ b/test/CMakeLists.txt
+@@ -40,7 +40,7 @@ foreach(file ${SRC_LIST})
+ 	endforeach(test_raw)
+ endforeach(file)
+ 
+-file(GLOB HEADERS "*.h")
++file(GLOB HEADERS "*.h" "*/*.h")
+ set(EXECUTABLE soltest)
+ eth_simple_add_executable(${EXECUTABLE} ${SRC_LIST} ${HEADERS})
+ 
+diff --git a/test/libsolidity/Imports.cpp b/test/libsolidity/Imports.cpp
+index 94d3e423..0736a853 100644
+--- a/test/libsolidity/Imports.cpp
++++ b/test/libsolidity/Imports.cpp
+@@ -142,6 +142,28 @@ BOOST_AUTO_TEST_CASE(name_clash_in_import)
+ 	BOOST_CHECK(c.compile());
+ }
+ 
++BOOST_AUTO_TEST_CASE(remappings)
++{
++	CompilerStack c;
++	c.setRemappings(vector<string>{"s=s_1.4.6", "t=Tee"});
++	c.addSource("a", "import \"s/s.sol\"; contract A is S {}");
++	c.addSource("b", "import \"t/tee.sol\"; contract A is Tee {} ");
++	c.addSource("s_1.4.6/s.sol", "contract S {}");
++	c.addSource("Tee/tee.sol", "contract Tee {}");
++	BOOST_CHECK(c.compile());
++}
++
++BOOST_AUTO_TEST_CASE(context_dependent_remappings)
++{
++	CompilerStack c;
++	c.setRemappings(vector<string>{"a:s=s_1.4.6", "b:s=s_1.4.7"});
++	c.addSource("a/a.sol", "import \"s/s.sol\"; contract A is SSix {}");
++	c.addSource("b/b.sol", "import \"s/s.sol\"; contract B is SSeven {}");
++	c.addSource("s_1.4.6/s.sol", "contract SSix {} ");
++	c.addSource("s_1.4.7/s.sol", "contract SSeven {} ");
++	BOOST_CHECK(c.compile());
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityEndToEndTest.cpp b/test/libsolidity/SolidityEndToEndTest.cpp
+index 30ae5792..07bf6759 100644
+--- a/test/libsolidity/SolidityEndToEndTest.cpp
++++ b/test/libsolidity/SolidityEndToEndTest.cpp
+@@ -6793,6 +6793,51 @@ BOOST_AUTO_TEST_CASE(cleanup_bytes_types)
+ 	BOOST_CHECK(callContractFunction("f(bytes2,uint16)", string("abc"), u256(0x040102)) == encodeArgs(0));
+ }
+ 
++BOOST_AUTO_TEST_CASE(skip_dynamic_types)
++{
++	// The EVM cannot provide access to dynamically-sized return values, so we have to skip them.
++	char const* sourceCode = R"(
++		contract C {
++			function f() returns (uint, uint[], uint) {
++				return (7, new uint[](2), 8);
++			}
++			function g() returns (uint, uint) {
++				// Previous implementation "moved" b to the second place and did not skip.
++				var (a, _, b) = this.f();
++				return (a, b);
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "C");
++	BOOST_CHECK(callContractFunction("g()") == encodeArgs(u256(7), u256(8)));
++}
++
++BOOST_AUTO_TEST_CASE(skip_dynamic_types_for_structs)
++{
++	// For accessors, the dynamic types are already removed in the external signature itself.
++	char const* sourceCode = R"(
++		contract C {
++			struct S {
++				uint x;
++				string a; // this is present in the accessor
++				uint[] b; // this is not present
++				uint y;
++			}
++			S public s;
++			function g() returns (uint, uint) {
++				s.x = 2;
++				s.a = "abc";
++				s.b = [7, 8, 9];
++				s.y = 6;
++				var (x, a, y) = this.s();
++				return (x, y);
++			}
++		}
++	)";
++	compileAndRun(sourceCode, 0, "C");
++	BOOST_CHECK(callContractFunction("g()") == encodeArgs(u256(2), u256(6)));
++}
++
+ BOOST_AUTO_TEST_SUITE_END()
+ 
+ }
+diff --git a/test/libsolidity/SolidityNameAndTypeResolution.cpp b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+index 52e0bf58..697b3fa9 100644
+--- a/test/libsolidity/SolidityNameAndTypeResolution.cpp
++++ b/test/libsolidity/SolidityNameAndTypeResolution.cpp
+@@ -544,6 +544,21 @@ BOOST_AUTO_TEST_CASE(redeclare_implemented_abstract_function_as_abstract)
+ 	BOOST_CHECK(expectError(text) == Error::Type::TypeError);
+ }
+ 
++BOOST_AUTO_TEST_CASE(implement_abstract_via_constructor)
++{
++	ASTPointer<SourceUnit> sourceUnit;
++	char const* text = R"(
++		contract base { function foo(); }
++		contract foo is base { function foo() {} }
++	)";
++	ETH_TEST_REQUIRE_NO_THROW(sourceUnit = parseAndAnalyse(text), "Parsing and name resolving failed");
++	std::vector<ASTPointer<ASTNode>> nodes = sourceUnit->nodes();
++	BOOST_CHECK_EQUAL(nodes.size(), 2);
++	ContractDefinition* derived = dynamic_cast<ContractDefinition*>(nodes[1].get());
++	BOOST_CHECK(derived);
++	BOOST_CHECK(!derived->annotation().isFullyImplemented);
++}
++
+ BOOST_AUTO_TEST_CASE(function_canonical_signature)
+ {
+ 	ASTPointer<SourceUnit> sourceUnit;
+@@ -2154,6 +2169,8 @@ BOOST_AUTO_TEST_CASE(dynamic_return_types_not_possible)
+ 			function f(uint) returns (string);
+ 			function g() {
+ 				var (x,) = this.f(2);
++				// we can assign to x but it is not usable.
++				bytes(x).length;
+ 			}
+ 		}
+ 	)";
