@@ -375,7 +375,8 @@ public class ScannerSolidityCompiler {
 		    		if(line.contains("INVALID")) this.INVALID++;		
 		    		if(line.contains("SELFDESTRUCT")) this.SELFDESTRUCT++;		    		
 		    	}
-	    	}	
+		    	br.close();
+	    	}
 	    }
 	    
 	    /**
@@ -384,7 +385,7 @@ public class ScannerSolidityCompiler {
 	     * @throws Exception
 	     */
 	    public void writeResults(String path) throws Exception {
-	        FileOutputStream output = new FileOutputStream("Results-Solidity-develop"+path.substring(55, 61)+".txt", true);
+	        FileOutputStream output = new FileOutputStream("Results-Solidity-develop"+path.substring(55, path.length())+".txt", true);
 			PrintStream write = new PrintStream(output);
 			write.println("Path file contenenti la dichiarazione degli OpCode: ");
 			Iterator<String> i = paths.iterator();
