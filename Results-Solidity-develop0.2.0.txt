@@ -1,30 +1,31 @@
 Path file contenenti la dichiarazione degli OpCode: 
+C:\Users\Kri\Desktop\Solidity-develop\solidity-develop-0.2.0\test\libsolidity\SolidityOptimizer.cpp
 
 Lista degli OpCode utilizzati:
-STOP non utilizzato
-ADD non utilizzato
+STOP
+ADD
 MUL non utilizzato
-SUB non utilizzato
-DIV non utilizzato
+SUB
+DIV
 SDIV non utilizzato
 MOD non utilizzato
 SMOD non utilizzato
 ADDMOD non utilizzato
 MULMOD non utilizzato
-EXP non utilizzato
+EXP
 SIGNEXTEND non utilizzato
 LT non utilizzato
-GT non utilizzato
+GT
 SLT non utilizzato
 SGT non utilizzato
-EQ non utilizzato
-ISZERO non utilizzato
-AND non utilizzato
-OR non utilizzato
+EQ
+ISZERO
+AND
+OR
 XOR non utilizzato
-NOT non utilizzato
+NOT
 BYTE non utilizzato
-SHA3 non utilizzato
+SHA3
 ADDRESS non utilizzato
 BALANCE non utilizzato
 ORIGIN non utilizzato
@@ -46,14 +47,14 @@ TIMESTAMP non utilizzato
 NUMBER non utilizzato
 DIFFICULTY non utilizzato
 GASLIMIT non utilizzato
-POP non utilizzato
-MLOAD non utilizzato
-MSTORE non utilizzato
+POP
+MLOAD
+MSTORE
 MSTORE8 non utilizzato
-SLOAD non utilizzato
-SSTORE non utilizzato
-JUMP non utilizzato
-JUMPI non utilizzato
+SLOAD
+SSTORE
+JUMP
+JUMPI
 PC non utilizzato
 MSIZE non utilizzato
 GAS non utilizzato
@@ -90,34 +91,34 @@ PUSH29 non utilizzato
 PUSH30 non utilizzato
 PUSH31 non utilizzato
 PUSH32 non utilizzato
-DUP1 non utilizzato
-DUP2 non utilizzato
-DUP3 non utilizzato
-DUP4 non utilizzato
-DUP5 non utilizzato
-DUP6 non utilizzato
+DUP1
+DUP2
+DUP3
+DUP4
+DUP5
+DUP6
 DUP7 non utilizzato
 DUP8 non utilizzato
 DUP9 non utilizzato
 DUP10 non utilizzato
 DUP11 non utilizzato
-DUP12 non utilizzato
-DUP13 non utilizzato
-DUP14 non utilizzato
+DUP12
+DUP13
+DUP14
 DUP15 non utilizzato
 DUP16 non utilizzato
-SWAP1 non utilizzato
-SWAP2 non utilizzato
-SWAP3 non utilizzato
-SWAP4 non utilizzato
-SWAP5 non utilizzato
-SWAP6 non utilizzato
+SWAP1
+SWAP2
+SWAP3
+SWAP4
+SWAP5
+SWAP6
 SWAP7 non utilizzato
-SWAP8 non utilizzato
+SWAP8
 SWAP9 non utilizzato
 SWAP10 non utilizzato
-SWAP11 non utilizzato
-SWAP12 non utilizzato
+SWAP11
+SWAP12
 SWAP13 non utilizzato
 SWAP14 non utilizzato
 SWAP15 non utilizzato
@@ -130,7 +131,7 @@ LOG4 non utilizzato
 CREATE non utilizzato
 CALL non utilizzato
 CALLCODE non utilizzato
-RETURN non utilizzato
+RETURN
 DELEGATECALL non utilizzato
 STATICCALL non utilizzato
 REVERT non utilizzato

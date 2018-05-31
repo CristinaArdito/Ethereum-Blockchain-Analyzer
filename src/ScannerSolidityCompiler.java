@@ -225,7 +225,16 @@ public class ScannerSolidityCompiler {
 			            	if(app.contains("Instruction")) {
 			            		paths.add(app);			            	
 			                }	
-		    } 
+		    }
+		    if(paths.isEmpty()) {
+		    	i = files.iterator();
+		    	while(i.hasNext()) {
+		    		String app = i.next().toString();
+		    		if(app.contains("SolidityOptimizer")) {
+		    			paths.add(app);
+		    		}
+		    	}
+		    }
 	    }
 	    
 	    /**
@@ -691,8 +700,7 @@ public class ScannerSolidityCompiler {
 		    	scanner.writeResults(path2.toString());
 		    	// Reset degli attributi opcode
 		    	scanner = new ScannerSolidityCompiler();
-	    	}
-
-	    	
+	    	}	    	
 	    }
+	    
 }
