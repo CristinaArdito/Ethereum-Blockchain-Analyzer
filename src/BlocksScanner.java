@@ -1,7 +1,13 @@
 import java.net.*;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
 import java.io.*;
 
-public class BlockchainStatistics {
+public class BlocksScanner {
 
 	// Lista di OpCode : http://solidity.readthedocs.io/en/develop/assembly.html
 	private int add;
@@ -81,8 +87,8 @@ public class BlockchainStatistics {
 	 * @return line - numero delle pagine 
 	 * @throws Exception
 	 */
-	public static String getPages() throws Exception {
-		URL website = new URL("https://etherscan.io/txs");
+	public static String getPagesBlocks() throws Exception {
+		URL website = new URL("https://etherscan.io/blocks");
         URLConnection connection = website.openConnection();
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
         connection.connect();
@@ -95,10 +101,39 @@ public class BlockchainStatistics {
         while ((inputLine = in.readLine()) != null) {
             splited = inputLine.split("\\s+");
             for (String part : splited) {
-            	if (part.contains("href=\"txs?p=") == true) {
+            	if (part.contains("href=\"blocks?p=") == true) {
             		int index = part.lastIndexOf("\"");
-            		line = part.substring(12, index);
-            		
+            		line = part.substring(15, index);           		
+            	}
+            }	
+        }
+        return line;
+	}
+	
+	public static String getBlocksNumber() throws Exception {
+		URL website = new URL("https://etherscan.io/blocks");
+        URLConnection connection = website.openConnection();
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+        connection.connect();
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        
+        String[] splited = null;
+        String inputLine;
+        String line = null;
+        boolean flag = false;
+        int i = 0;
+        
+        while ((inputLine = in.readLine()) != null) {
+            splited = inputLine.split("\\s+");
+            for (String part : splited) {          	
+            	if (part.contains("Showing") == true) {
+            		flag = true;
+            		i = 0;
+            	}
+            	i++;
+            	if(i == 3 && flag == true) {
+            		line = part.substring(2, part.length());  
+            		break;
             	}
             }	
         }
@@ -199,17 +234,37 @@ public class BlockchainStatistics {
 		PrintStream write = new PrintStream(output);
 	
         String inputLine;
-        boolean opcode = false;
+        Element app;
+        Elements app2;
+        Document doc;
+//        boolean opcode = false;
         while ((inputLine = in.readLine()) != null) {
-            	if (inputLine.contains("assembly {") == true) {
-            		opcode=true;
-            	}
-            	if(inputLine.contains("}") == true) {
-            		opcode = false;
-            	}
-            	if(opcode == true) {
-            		if(inputLine.contains("//") == false && !inputLine.isEmpty()) write.println(inputLine);
-            	}
+//            	if (inputLine.contains("assembly {") == true) {
+//            		opcode=true;
+//            	}
+//            	if(inputLine.contains("}") == true) {
+//            		opcode = false;
+//            		write.println(inputLine);
+//            	}
+//            	if(opcode == true) {
+//            		if(inputLine.contains("//") == false && !inputLine.isEmpty()) write.println(inputLine);
+//            	}
+        		doc = Jsoup.parse(inputLine);
+//        		if (inputLine.contains("verifiedbytecode2") == true) {
+        		if((app = doc.getElementById("verifiedbytecode2")) != null){
+        			write.println("0x"+app.text());
+        			if(inputLine.contains("v0.")){
+        				System.out.println(inputLine);
+        				System.exit(0);
+        				}
+        			}
+        		if (!(app2 = doc.select("pre.wordwrap")).isEmpty()) {
+        			if(app2.get(0).text().contains("0x")){
+//        				System.out.println(doc.html());
+            			write.println(app2.get(0).text());
+//        				System.out.println("2 "+app2.get(0).text());
+        			}
+        		}
         }  
         in.close();
         write.close();
@@ -529,7 +584,9 @@ public class BlockchainStatistics {
     public static void main(String[] args) throws Exception {
     	BlockchainStatistics ss = new BlockchainStatistics();
     	// Crea la lista degli indirizzi
-    	/*int index = Integer.parseInt(getPages());
+    	int index = Integer.parseInt(getPagesBlocks());
+    	System.out.println(getBlocksNumber());
+    /*	
     	  for(int i=1; i<=index; i++) {
     		if(i==1) {
     			ss.getAddresses("https://etherscan.io/txs");
@@ -539,6 +596,7 @@ public class BlockchainStatistics {
     		}
     	}*/
     	// Ottiene gli opcode e la versione del compilatore
+    	System.out.println("FINITO DI PRENDERE GLI INDIRIZZI DEI CONTRATTI");
     	File file = new File("AddressesBlockchain.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	    String line;
@@ -553,3 +611,4 @@ public class BlockchainStatistics {
     	br.close();
     }
 }
+
