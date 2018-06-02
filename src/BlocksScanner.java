@@ -1,9 +1,16 @@
 import java.net.*;
+import java.util.logging.Level;
 
+import org.apache.commons.logging.LogFactory;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
+
+import com.gargoylesoftware.htmlunit.AlertHandler;
+import com.gargoylesoftware.htmlunit.Page;
+import com.gargoylesoftware.htmlunit.ScriptResult;
+import com.gargoylesoftware.htmlunit.WebClient;
+import com.gargoylesoftware.htmlunit.html.*;
 
 import java.io.*;
 
@@ -110,6 +117,11 @@ public class BlocksScanner {
         return line;
 	}
 	
+	/**
+	 * Ottiene il numero corrente di blocchi presenti nella Blockchain
+	 * @return line - numbero di blocchi
+	 * @throws Exception
+	 */
 	public static String getBlocksNumber() throws Exception {
 		URL website = new URL("https://etherscan.io/blocks");
         URLConnection connection = website.openConnection();
@@ -225,48 +237,68 @@ public class BlocksScanner {
      */
     public void getOpcode(String url) throws Exception {
     	 URL website = new URL(url);
-         URLConnection connection = website.openConnection();
-         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
-         connection.connect();
-         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-        
-        FileOutputStream output = new FileOutputStream("OpcodeBlockchain.txt", true);
-		PrintStream write = new PrintStream(output);
-	
-        String inputLine;
+    	 LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
+
+    	 java.util.logging.Logger.getLogger("com.gargoylesoftware").setLevel(Level.OFF); 
+    	 java.util.logging.Logger.getLogger("org.apache.commons.httpclient").setLevel(Level.OFF);
+    	 
+    	 WebClient webClient = new WebClient();
+    	 webClient.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+         webClient.getOptions().setJavaScriptEnabled(true);
+         webClient.waitForBackgroundJavaScript(10000);
+         webClient.setAlertHandler(new AlertHandler() {
+
+             public void handleAlert(Page page, String message) {
+                 throw new AssertionError();
+             }
+         });
+         HtmlPage currentPage = webClient.getPage(website);
+    	 HtmlPage page;
+         if(currentPage.getElementById("btnConvert3") != null) {
+        	 HtmlAnchor element = (HtmlAnchor) currentPage.getElementById("btnConvert3");
+        	 String clickAttr = element.getOnClickAttribute();
+	         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
+	         page =  (HtmlPage) scriptResult.getNewPage();
+         }
+         else {
+        	 HtmlButton element = (HtmlButton) currentPage.getElementById("ContentPlaceHolder1_btnconvert222");
+        	 String clickAttr = element.getOnClickAttribute();
+	         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
+	         page = (HtmlPage) scriptResult.getNewPage();
+         }
+
+         String prova = page.asXml();
+         Reader inputString = new StringReader(prova);
+         BufferedReader in = new BufferedReader(inputString);
+         
+         FileOutputStream output = new FileOutputStream("OpcodeBlockchain.txt", true);
+ 		 PrintStream write = new PrintStream(output);
+         
+ 		String inputLine;
         Element app;
-        Elements app2;
         Document doc;
-//        boolean opcode = false;
+        boolean flag = false;
+        int i = 0;
+        
         while ((inputLine = in.readLine()) != null) {
-//            	if (inputLine.contains("assembly {") == true) {
-//            		opcode=true;
-//            	}
-//            	if(inputLine.contains("}") == true) {
-//            		opcode = false;
-//            		write.println(inputLine);
-//            	}
-//            	if(opcode == true) {
-//            		if(inputLine.contains("//") == false && !inputLine.isEmpty()) write.println(inputLine);
-//            	}
         		doc = Jsoup.parse(inputLine);
-//        		if (inputLine.contains("verifiedbytecode2") == true) {
         		if((app = doc.getElementById("verifiedbytecode2")) != null){
-        			write.println("0x"+app.text());
-        			if(inputLine.contains("v0.")){
-        				System.out.println(inputLine);
-        				System.exit(0);
-        				}
-        			}
-        		if (!(app2 = doc.select("pre.wordwrap")).isEmpty()) {
-        			if(app2.get(0).text().contains("0x")){
-//        				System.out.println(doc.html());
-            			write.println(app2.get(0).text());
-//        				System.out.println("2 "+app2.get(0).text());
+        			flag = true;
+        			i = 0;
+        		}
+        		if(inputLine.contains("fa fa-database") == true) {
+        			flag = false;
+        		}
+        		i++;
+        		if(flag == true && i > 1) {
+        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false) {
+        				write.println(inputLine);
         			}
         		}
+
         }  
         in.close();
+        webClient.close();
         write.close();
     }
 
@@ -582,31 +614,28 @@ public class BlocksScanner {
     }
     
     public static void main(String[] args) throws Exception {
-    	BlockchainStatistics ss = new BlockchainStatistics();
-    	// Crea la lista degli indirizzi
-    	int index = Integer.parseInt(getPagesBlocks());
-    	System.out.println(getBlocksNumber());
-    /*	
-    	  for(int i=1; i<=index; i++) {
-    		if(i==1) {
-    			ss.getAddresses("https://etherscan.io/txs");
-    		}
-    		else {
-    			ss.getAddresses("https://etherscan.io/txs?p="+i);
-    		}
+    	BlocksScanner ss = new BlocksScanner();
+    	// Ottiene il numero corrente di blocchi
+    	int index = Integer.parseInt(getBlocksNumber());
+    	System.out.println("Blocco corrente: "+index);
+    	System.out.println("Inizio scansione indirizzi contratti");
+    	/*for(int i = index; i >= 0; i--) {    		
+    		ss.getAddresses("https://etherscan.io/txs?block="+i);
     	}*/
     	// Ottiene gli opcode e la versione del compilatore
-    	System.out.println("FINITO DI PRENDERE GLI INDIRIZZI DEI CONTRATTI");
+    	System.out.println("Inizio scansione Opcode & versione compilatore Solidity");
     	File file = new File("AddressesBlockchain.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	    String line;
-    	    while ((line = br.readLine()) != null) {
+    	    while ((line = br.readLine()) != null) {    	    	
     	    	ss.getOpcode("https://etherscan.io/address/"+line+"#code");
     	    	ss.getCompilerVersion("https://etherscan.io/address/"+line+"#code");
     	    }
     	// Analizza gli opcode
+    	System.out.println("Inizio statistiche");
     	ss.statistics();
-    	// Memorizza i risultati    	
+    	// Memorizza i risultati 
+    	System.out.println("Scrittura risultati in corso");
     	ss.writeResults();
     	br.close();
     }
