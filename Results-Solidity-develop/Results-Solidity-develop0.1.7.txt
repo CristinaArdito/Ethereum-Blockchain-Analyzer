@@ -1,0 +1,139 @@
+Path file contenenti la dichiarazione degli OpCode: 
+C:\Users\Kri\Desktop\Solidity-develop\solidity-develop-0.1.7\test\libsolidity\SolidityOptimizer.cpp
+
+Lista degli OpCode utilizzati:
+STOP
+ADD
+MUL non utilizzato
+SUB
+DIV
+SDIV non utilizzato
+MOD non utilizzato
+SMOD non utilizzato
+ADDMOD non utilizzato
+MULMOD non utilizzato
+EXP
+SIGNEXTEND non utilizzato
+LT non utilizzato
+GT
+SLT non utilizzato
+SGT non utilizzato
+EQ
+ISZERO
+AND
+OR
+XOR non utilizzato
+NOT
+BYTE non utilizzato
+SHA3
+ADDRESS non utilizzato
+BALANCE non utilizzato
+ORIGIN non utilizzato
+CALLER non utilizzato
+CALLVALUE non utilizzato
+CALLDATALOAD non utilizzato
+CALLDATASIZE non utilizzato
+CALLDATACOPY non utilizzato
+CODESIZE non utilizzato
+CODECOPY non utilizzato
+GASPRICE non utilizzato
+EXTCODESIZE non utilizzato
+EXTCODECOPY non utilizzato
+RETURNDATASIZE non utilizzato
+RETURNDATACOPY non utilizzato
+BLOCKHASH non utilizzato
+COINBASE non utilizzato
+TIMESTAMP non utilizzato
+NUMBER non utilizzato
+DIFFICULTY non utilizzato
+GASLIMIT non utilizzato
+POP
+MLOAD
+MSTORE
+MSTORE8 non utilizzato
+SLOAD
+SSTORE
+JUMP
+JUMPI
+PC non utilizzato
+MSIZE non utilizzato
+GAS non utilizzato
+JUMPDEST non utilizzato
+PUSH1 non utilizzato
+PUSH2 non utilizzato
+PUSH3 non utilizzato
+PUSH4 non utilizzato
+PUSH5 non utilizzato
+PUSH6 non utilizzato
+PUSH7 non utilizzato
+PUSH8 non utilizzato
+PUSH9 non utilizzato
+PUSH10 non utilizzato
+PUSH11 non utilizzato
+PUSH12 non utilizzato
+PUSH13 non utilizzato
+PUSH14 non utilizzato
+PUSH15 non utilizzato
+PUSH16 non utilizzato
+PUSH17 non utilizzato
+PUSH18 non utilizzato
+PUSH19 non utilizzato
+PUSH20 non utilizzato
+PUSH21 non utilizzato
+PUSH22 non utilizzato
+PUSH23 non utilizzato
+PUSH24 non utilizzato
+PUSH25 non utilizzato
+PUSH26 non utilizzato
+PUSH27 non utilizzato
+PUSH28 non utilizzato
+PUSH29 non utilizzato
+PUSH30 non utilizzato
+PUSH31 non utilizzato
+PUSH32 non utilizzato
+DUP1
+DUP2
+DUP3
+DUP4
+DUP5
+DUP6
+DUP7 non utilizzato
+DUP8 non utilizzato
+DUP9 non utilizzato
+DUP10 non utilizzato
+DUP11 non utilizzato
+DUP12
+DUP13
+DUP14
+DUP15 non utilizzato
+DUP16 non utilizzato
+SWAP1
+SWAP2
+SWAP3
+SWAP4
+SWAP5
+SWAP6
+SWAP7 non utilizzato
+SWAP8
+SWAP9 non utilizzato
+SWAP10 non utilizzato
+SWAP11
+SWAP12
+SWAP13 non utilizzato
+SWAP14 non utilizzato
+SWAP15 non utilizzato
+SWAP16 non utilizzato
+LOG0 non utilizzato
+LOG1 non utilizzato
+LOG2 non utilizzato
+LOG3 non utilizzato
+LOG4 non utilizzato
+CREATE non utilizzato
+CALL non utilizzato
+CALLCODE non utilizzato
+RETURN
+DELEGATECALL non utilizzato
+STATICCALL non utilizzato
+REVERT non utilizzato
+INVALID non utilizzato
+SELFDESTRUCT non utilizzato

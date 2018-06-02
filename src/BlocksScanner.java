@@ -237,8 +237,8 @@ public class BlocksScanner {
      */
     public void getOpcode(String url) throws Exception {
     	 URL website = new URL(url);
+    	 
     	 LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
-
     	 java.util.logging.Logger.getLogger("com.gargoylesoftware").setLevel(Level.OFF); 
     	 java.util.logging.Logger.getLogger("org.apache.commons.httpclient").setLevel(Level.OFF);
     	 
@@ -246,25 +246,29 @@ public class BlocksScanner {
     	 webClient.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
          webClient.getOptions().setJavaScriptEnabled(true);
          webClient.waitForBackgroundJavaScript(10000);
+         
          webClient.setAlertHandler(new AlertHandler() {
-
              public void handleAlert(Page page, String message) {
                  throw new AssertionError();
              }
          });
+         
          HtmlPage currentPage = webClient.getPage(website);
     	 HtmlPage page;
+    	 String opcodeId = new String();
          if(currentPage.getElementById("btnConvert3") != null) {
         	 HtmlAnchor element = (HtmlAnchor) currentPage.getElementById("btnConvert3");
         	 String clickAttr = element.getOnClickAttribute();
 	         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
 	         page =  (HtmlPage) scriptResult.getNewPage();
+	         opcodeId = "verifiedbytecode2";
          }
          else {
         	 HtmlButton element = (HtmlButton) currentPage.getElementById("ContentPlaceHolder1_btnconvert222");
         	 String clickAttr = element.getOnClickAttribute();
 	         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
 	         page = (HtmlPage) scriptResult.getNewPage();
+	         opcodeId = "dividcode";
          }
 
          String prova = page.asXml();
@@ -273,33 +277,35 @@ public class BlocksScanner {
          
          FileOutputStream output = new FileOutputStream("OpcodeBlockchain.txt", true);
  		 PrintStream write = new PrintStream(output);
-         
- 		String inputLine;
-        Element app;
-        Document doc;
-        boolean flag = false;
-        int i = 0;
+ 		 
+         write.println("Contract address: " + url.substring(29, url.lastIndexOf("#")));
+   		 String inputLine;
+         Element app;
+         Document doc;
+         boolean flag = false;
+         int i = 0;
         
-        while ((inputLine = in.readLine()) != null) {
+         while ((inputLine = in.readLine()) != null) {
         		doc = Jsoup.parse(inputLine);
-        		if((app = doc.getElementById("verifiedbytecode2")) != null){
+        		if((app = doc.getElementById(opcodeId)) != null){
         			flag = true;
         			i = 0;
         		}
-        		if(inputLine.contains("fa fa-database") == true) {
+        		if(inputLine.contains("fa fa-database") == true || inputLine.contains("readContract") == true) {
         			flag = false;
         		}
         		i++;
         		if(flag == true && i > 1) {
-        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false) {
+        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {
         				write.println(inputLine);
         			}
         		}
 
-        }  
-        in.close();
-        webClient.close();
-        write.close();
+         }  
+         write.println();
+         in.close();
+         webClient.close();
+         write.close();
     }
 
     /**
@@ -619,9 +625,9 @@ public class BlocksScanner {
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Inizio scansione indirizzi contratti");
-    	/*for(int i = index; i >= 0; i--) {    		
+    	for(int i = index; i >= 0; i--) {    		
     		ss.getAddresses("https://etherscan.io/txs?block="+i);
-    	}*/
+    	}
     	// Ottiene gli opcode e la versione del compilatore
     	System.out.println("Inizio scansione Opcode & versione compilatore Solidity");
     	File file = new File("AddressesBlockchain.txt");
