@@ -17,6 +17,7 @@ import java.io.*;
 public class BlocksScanner {
 
 	// Lista di OpCode : http://solidity.readthedocs.io/en/develop/assembly.html
+	private int stop;
 	private int add;
 	private int mul;
 	private int sub;
@@ -44,6 +45,7 @@ public class BlocksScanner {
 	private int sha3;
 	private int jump;
 	private int jumpi;
+	private int jumpdest;
 	private int pop;
 	private int mload;
 	private int mstore;
@@ -85,9 +87,75 @@ public class BlocksScanner {
 	private int blockhash;
 	private int coinbase;
 	private int timestamp;
-	private int number;;
+	private int number;
 	private int difficulty;
 	private int gaslimit;
+	private int pc;
+	private int push1;
+	private int push2;
+	private int push3;
+	private int push4;
+	private int push5;
+	private int push6;
+	private int push7;
+	private int push8;
+	private int push9;
+	private int push10;
+	private int push11;
+	private int push12;
+	private int push13;
+	private int push14;
+	private int push15;
+	private int push16;
+	private int push17;
+	private int push18;
+	private int push19;
+	private int push20;
+	private int push21;
+	private int push22;
+	private int push23;
+	private int push24;
+	private int push25;
+	private int push26;
+	private int push27;
+	private int push28;
+	private int push29;
+	private int push30;
+	private int push31;
+	private int push32;
+	private int dup1;
+	private int dup2;
+	private int dup3;
+	private int dup4;
+	private int dup5;
+	private int dup6;
+	private int dup7;
+	private int dup8;
+	private int dup9;
+	private int dup10;
+	private int dup11;
+	private int dup12;
+	private int dup13;
+	private int dup14;
+	private int dup15;
+	private int dup16;
+	private int swap1;
+	private int swap2;
+	private int swap3;
+	private int swap4;
+	private int swap5;
+	private int swap6;
+	private int swap7;
+	private int swap8;
+	private int swap9;
+	private int swap10;
+	private int swap11;
+	private int swap12;
+	private int swap13;
+	private int swap14;
+	private int swap15;
+	private int swap16;
+	
 	
 	/**
 	 * Ottiene il numero totale delle pagine contenenti i contratti
@@ -229,6 +297,7 @@ public class BlocksScanner {
         write.close();
 		
     }
+    
     /**
      * Ottiene gli Opcode tramite il codice sorgente di ogni pagina dei contratti
      * e li memorizza su file
@@ -244,6 +313,7 @@ public class BlocksScanner {
     	 
     	 WebClient webClient = new WebClient();
     	 webClient.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+    	 webClient.getCache().setMaxSize(0);
          webClient.getOptions().setJavaScriptEnabled(true);
          webClient.waitForBackgroundJavaScript(10000);
          
@@ -313,226 +383,425 @@ public class BlocksScanner {
      * @throws Exception
      */
     public void statistics() throws Exception {
-    	File file = new File("OpCode.txt");
+    	File file = new File("OpcodeBlockchain.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	String line;
     	while ((line = br.readLine()) != null) {
-    		if (line.contains("add") == true) {
+       		if(line.contains("STOP") == true) {
+    			this.stop++;
+    		}
+    		if (line.contains("ADD") == true) {
 				this.add++;
     		}	
-    		if (line.contains("mul") == true) {
+    		if (line.contains("MUL") == true) {
 				this.mul++;
     		}	
-    		if (line.contains("sub") == true) {
+    		if (line.contains("SUB") == true) {
 				this.sub++;
     		}	
-    		if (line.contains("div") == true) {
+    		if (line.contains("DIV") == true) {
 				this.div++;
     		}	
-    		if (line.contains("sdiv") == true) {
+    		if (line.contains("SDIV") == true) {
 				this.sdiv++;
     		}	
-    		if (line.contains("mod") == true) {
+    		if (line.contains("MOD") == true) {
 				this.mod++;
     		}	
-    		if (line.contains("smod") == true) {
+    		if (line.contains("SMOD") == true) {
 				this.smod++;
     		}	
-    		if (line.contains("exp") == true) {
+    		if (line.contains("EXP") == true) {
 				this.exp++;
     		}
-    		if (line.contains("not") == true) {
+    		if (line.contains("NOT") == true) {
 				this.not++;
     		}	
-    		if (line.contains("if") == true) {
+    		if (line.contains(" IF ") == true) {
 				this.if1++;
     		}	
-    		if (line.contains("lt") == true) {
+    		if (line.contains("LT") == true) {
 				this.lt++;
     		}	
-    		if (line.contains("gt") == true) {
+    		if (line.contains("GT") == true) {
 				this.gt++;
     		}
-    		if (line.contains("slt") == true) {
+    		if (line.contains("SLT") == true) {
 				this.slt++;
     		}
-    		if (line.contains("sgt") == true) {
+    		if (line.contains("SGT") == true) {
 				this.sgt++;
     		}	
-    		if (line.contains("eq") == true) {
+    		if (line.contains("EQ") == true) {
 				this.eq++;
     		}	
-    		if (line.contains("iszero") == true) {
+    		if (line.contains("ISZERO") == true) {
 				this.iszero++;
     		}	
-    		if (line.contains("and") == true) {
+    		if (line.contains("AND") == true) {
 				this.and++;
     		}
-    		if (line.contains("or") == true) {
+    		if (line.contains("OR") == true) {
 				this.or++;
     		}
-    		if (line.contains("xor") == true) {
+    		if (line.contains("XOR") == true) {
 				this.xor++;
     		}
-    		if (line.contains("byte") == true) {
+    		if (line.contains("BYTE") == true) {
 				this.byte1++;
     		}	
-    		if (line.contains("addmod") == true) {
+    		if (line.contains("ADDMOD") == true) {
 				this.addmod++;
     		}	
-    		if (line.contains("mulmod") == true) {
+    		if (line.contains("MULMOD") == true) {
 				this.mulmod++;
     		}	
-    		if (line.contains("signextend") == true) {
+    		if (line.contains("SIGNEXTEND") == true) {
 				this.signextend++;
     		}
-    		if (line.contains("keccak256") == true) {
+    		if (line.contains("KECCAK256") == true) {
 				this.keccak256++;
     		}	
-    		if (line.contains("sha3") == true) {
+    		if (line.contains("SHA3") == true) {
 				this.sha3++;
     		}	
-    		if (line.contains("jump") == true) {
+    		if (line.contains("JUMP") == true) {
 				this.jump++;
     		}	
-    		if (line.contains("jumpi") == true) {
+    		if (line.contains("JUMPI") == true) {
 				this.jumpi++;
     		}
-    		if (line.contains("pop") == true) {
+    		if (line.contains("POP") == true) {
 				this.pop++;
     		}
-    		if (line.contains("mload") == true) {
+    		if (line.contains("MLOAD") == true) {
 				this.mload++;
-    		}	
-    		if (line.contains("sha3") == true) {
-				this.sha3++;
-    		}	
-    		if (line.contains("mstore") == true) {
+    		}		
+    		if (line.contains("MSTORE") == true) {
 				this.mstore++;
     		}	
-    		if (line.contains("mstore8") == true) {
+    		if (line.contains("MSTORE8") == true) {
 				this.mstore8++;
     		}
-    		if (line.contains("sload") == true) {
+    		if (line.contains("SLOAD") == true) {
 				this.sload++;
     		}
-    		if (line.contains("sstore") == true) {
+    		if (line.contains("SSTORE") == true) {
 				this.sstore++;
     		}
-    		if (line.contains("msize") == true) {
+    		if (line.contains("MSIZE") == true) {
 				this.msize++;
     		}	
-    		if (line.contains("gas") == true) {
+    		if (line.contains("GAS") == true) {
 				this.gas++;
     		}	
-    		if (line.contains("address") == true) {
+    		if (line.contains("ADDRESS") == true) {
 				this.address++;
     		}	
-    		if (line.contains("balance") == true) {
+    		if (line.contains("BALANCE") == true) {
 				this.balance++;
     		}
-    		if (line.contains("caller") == true) {
+    		if (line.contains("CALLER") == true) {
 				this.caller++;
     		}
-    		if (line.contains("callvalue") == true) {
+    		if (line.contains("CALLVALUE") == true) {
 				this.callvalue++;
     		}
-    		if (line.contains("calldataload") == true) {
+    		if (line.contains("CALLDATALOAD") == true) {
 				this.calldataload++;
     		}	
-    		if (line.contains("calldatasize") == true) {
+    		if (line.contains("CALLDATASIZE") == true) {
 				this.calldatasize++;
     		}	
-    		if (line.contains("calldatacopy") == true) {
+    		if (line.contains("CALLDATACOPY") == true) {
 				this.calldatacopy++;
     		}	
-    		if (line.contains("codesize") == true) {
+    		if (line.contains("CODESIZE") == true) {
 				this.codesize++;
     		}
-    		if (line.contains("codecopy") == true) {
+    		if (line.contains("CODECOPY") == true) {
 				this.codecopy++;
     		}
-    		if (line.contains("extcodesize") == true) {
+    		if (line.contains("EXTCODESIZE") == true) {
 				this.extcodesize++;
     		}
-    		if (line.contains("extcodecopy") == true) {
+    		if (line.contains("EXTCODECOPY") == true) {
 				this.extcodecopy++;
     		}
-    		if (line.contains("returndatasize") == true) {
+    		if (line.contains("RETURNDATASIZE") == true) {
 				this.returndatasize++;
     		}	
-    		if (line.contains("returndatacopy") == true) {
+    		if (line.contains("RETURNDATACOPY") == true) {
 				this.returndatacopy++;
     		}	
-    		if (line.contains("create") == true) {
+    		if (line.contains("CREATE") == true) {
 				this.create++;
     		}	
-    		if (line.contains("create2") == true) {
+    		if (line.contains("CREATE2") == true) {
 				this.create2++;
     		}
-    		if (line.contains("call") == true) {
+    		if (line.contains("CALL") == true) {
 				this.call++;
     		}
-    		if (line.contains("callcode") == true) {
+    		if (line.contains("CALLCODE") == true) {
 				this.callcode++;
     		}
-    		if (line.contains("delegatecall") == true) {
+    		if (line.contains("DELEGATECALL") == true) {
 				this.delegatecall++;
     		}
-    		if (line.contains("staticcall") == true) {
+    		if (line.contains("STATICCALL") == true) {
 				this.staticcall++;
     		}
-    		if (line.contains("return") == true) {
+    		if (line.contains("RETURN") == true) {
 				this.return1++;
     		}	
-    		if (line.contains("revert") == true) {
+    		if (line.contains("REVERT") == true) {
 				this.revert++;
     		}	
-    		if (line.contains("selfdestruct") == true) {
+    		if (line.contains("SELFDESTRUCT") == true) {
 				this.selfdestruct++;
     		}	
-    		if (line.contains("invalid") == true) {
+    		if (line.contains("INVALID") == true) {
 				this.invalid++;
     		}
-    		if (line.contains("log0") == true) {
+    		if (line.contains("LOG0") == true) {
 				this.log0++;
     		}	
-    		if (line.contains("log1") == true) {
+    		if (line.contains("LOG1") == true) {
 				this.log1++;
     		}
-    		if (line.contains("log2") == true) {
+    		if (line.contains("LOG2") == true) {
 				this.log2++;
     		}
-    		if (line.contains("log3") == true) {
+    		if (line.contains("LOG3") == true) {
 				this.log3++;
     		}
-    		if (line.contains("log4") == true) {
+    		if (line.contains("LOG4") == true) {
 				this.log4++;
     		}
-    		if (line.contains("origin") == true) {
+    		if (line.contains("ORIGIN") == true) {
 				this.origin++;
     		}
-    		if (line.contains("gasprice") == true) {
+    		if (line.contains("GASPRICE") == true) {
 				this.gasprice++;
     		}	
-    		if (line.contains("blockhash") == true) {
+    		if (line.contains("BLOCKHASH") == true) {
 				this.blockhash++;
     		}	
-    		if (line.contains("coinbase") == true) {
+    		if (line.contains("COINBASE") == true) {
 				this.coinbase++;
     		}	
-    		if (line.contains("timestamp") == true) {
+    		if (line.contains("TIMESTAMP") == true) {
 				this.timestamp++;
     		}
-    		if (line.contains("number") == true) {
+    		if (line.contains("NUMBER") == true) {
 				this.number++;
     		}	
-    		if (line.contains("difficulty") == true) {
+    		if (line.contains("DIFFICULTY") == true) {
 				this.difficulty++;
     		}	
-    		if (line.contains("gaslimit") == true) {
+    		if (line.contains("GASLIMIT") == true) {
 				this.gaslimit++;
     		}
+    		if(line.contains("PC") == true) {
+    			this.pc++;
+    		}
+    		if(line.contains("JUMPDEST") == true) {
+    			this.jumpdest++;
+    		}
+    		if(line.contains("PUSH1") == true) {
+    			this.push1++;
+    		}
+    		if(line.contains("PUSH2") == true) {
+    			this.push2++;
+    		}
+    		if(line.contains("PUSH3") == true) {
+    			this.push3++;
+    		}
+    		if(line.contains("PUSH4") == true) {
+    			this.push4++;
+    		}
+    		if(line.contains("PUSH5") == true) {
+    			this.push5++;
+    		}
+    		if(line.contains("PUSH6") == true) {
+    			this.push6++;
+    		}
+    		if(line.contains("PUSH7") == true) {
+    			this.push7++;
+    		}
+    		if(line.contains("PUSH8") == true) {
+    			this.push8++;
+    		}
+    		if(line.contains("PUSH9") == true) {
+    			this.push9++;
+    		}
+    		if(line.contains("PUSH10") == true) {
+    			this.push10++;
+    		}
+    		if(line.contains("PUSH11") == true) {
+    			this.push11++;
+    		}
+    		if(line.contains("PUSH12") == true) {
+    			this.push12++;
+    		}
+    		if(line.contains("PUSH13") == true) {
+    			this.push13++;
+    		}
+    		if(line.contains("PUSH14") == true) {
+    			this.push14++;
+    		}
+    		if(line.contains("PUSH15") == true) {
+    			this.push15++;
+    		}
+    		if(line.contains("PUSH16") == true) {
+    			this.push17++;
+    		}
+    		if(line.contains("PUSH17") == true) {
+    			this.push17++;
+    		}
+    		if(line.contains("PUSH19") == true) {
+    			this.push19++;
+    		}
+    		if(line.contains("PUSH18") == true) {
+    			this.push18++;
+    		}
+    		if(line.contains("PUSH20") == true) {
+    			this.push20++;
+    		}
+    		if(line.contains("PUSH21") == true) {
+    			this.push21++;
+    		}
+    		if(line.contains("PUSH22") == true) {
+    			this.push22++;
+    		}
+    		if(line.contains("PUSH23") == true) {
+    			this.push23++;
+    		}
+    		if(line.contains("PUSH24") == true) {
+    			this.push24++;
+    		}
+    		if(line.contains("PUSH25") == true) {
+    			this.push25++;
+    		}
+    		if(line.contains("PUSH26") == true) {
+    			this.push26++;
+    		}
+    		if(line.contains("PUSH27") == true) {
+    			this.push27++;
+    		}
+    		if(line.contains("PUSH28") == true) {
+    			this.push28++;
+    		}
+    		if(line.contains("PUSH29") == true) {
+    			this.push29++;
+    		}
+    		if(line.contains("PUSH30") == true) {
+    			this.push30++;
+    		}
+    		if(line.contains("PUSH31") == true) {
+    			this.push31++;
+    		}
+    		if(line.contains("PUSH32") == true) {
+    			this.push32++;
+    		}
+    		if(line.contains("DUP1") == true) {
+    			this.dup1++;
+    		}
+    		if(line.contains("DUP2") == true) {
+    			this.dup2++;
+    		}
+    		if(line.contains("DUP3") == true) {
+    			this.dup3++;
+    		}
+    		if(line.contains("DUP4") == true) {
+    			this.dup4++;
+    		}
+    		if(line.contains("DUP5") == true) {
+    			this.dup5++;
+    		}
+    		if(line.contains("DUP6") == true) {
+    			this.dup6++;
+    		}
+    		if(line.contains("DUP7") == true) {
+    			this.dup7++;
+    		}
+    		if(line.contains("DUP8") == true) {
+    			this.dup8++;
+    		}
+    		if(line.contains("DUP9") == true) {
+    			this.dup9++;
+    		}
+    		if(line.contains("DUP10") == true) {
+    			this.dup10++;
+    		}
+    		if(line.contains("DUP11") == true) {
+    			this.dup11++;
+    		}
+    		if(line.contains("DUP12") == true) {
+    			this.dup12++;
+    		}
+    		if(line.contains("DUP13") == true) {
+    			this.dup13++;
+    		}
+    		if(line.contains("DUP14") == true) {
+    			this.dup14++;
+    		}
+    		if(line.contains("DUP15") == true) {
+    			this.dup15++;
+    		}
+    		if(line.contains("DUP16") == true) {
+    			this.dup16++;
+    		}
+    		if(line.contains("SWAP1") == true) {
+    			this.swap1++;
+    		}
+    		if(line.contains("SWAP2") == true) {
+    			this.swap2++;
+    		}
+    		if(line.contains("SWAP3") == true) {
+    			this.swap3++;
+    		}
+    		if(line.contains("SWAP4") == true) {
+    			this.swap4++;
+    		}
+    		if(line.contains("SWAP5") == true) {
+    			this.swap5++;
+    		}
+    		if(line.contains("SWAP6") == true) {
+    			this.swap6++;
+    		}
+    		if(line.contains("SWAP7") == true) {
+    			this.swap7++;
+    		}
+    		if(line.contains("SWAP8") == true) {
+    			this.swap8++;
+    		}
+    		if(line.contains("SWAP9") == true) {
+    			this.swap9++;
+    		}
+    		if(line.contains("SWAP10") == true) {
+    			this.swap10++;
+    		}
+    		if(line.contains("SWAP11") == true) {
+    			this.swap11++;
+    		}
+    		if(line.contains("SWAP12") == true) {
+    			this.swap12++;
+    		}
+    		if(line.contains("SWAP13") == true) {
+    			this.swap13++;
+    		}
+    		if(line.contains("SWAP14") == true) {
+    			this.swap14++;
+    		}
+    		if(line.contains("SWAP15") == true) {
+    			this.swap15++;
+    		}
+    		if(line.contains("SWAP16") == true) {
+    			this.swap16++;
+    		}
+    		
     	}
     	br.close();
     }
@@ -616,6 +885,73 @@ public class BlocksScanner {
 		write.println("number: "+ this.number);	
 		write.println("difficulty: "+ this.difficulty);	
 		write.println("gaslimit: "+ this.gaslimit);	
+		write.println("stop: "+ this.stop);
+		write.println("pc: "+this.pc);
+		write.println("jumpdest: "+this.jumpdest);
+		write.println("push1: "+this.push1);
+		write.println("push2: "+this.push2);
+		write.println("push3: "+this.push3);
+		write.println("push4: "+this.push4);
+		write.println("push5: "+this.push5);
+		write.println("push6: "+this.push6);
+		write.println("push7: "+this.push7);
+		write.println("push8: "+this.push8);
+		write.println("push9: "+this.push9);
+		write.println("push10: "+this.push10);
+		write.println("push11: "+this.push11);
+		write.println("push12: "+this.push12);
+		write.println("push13: "+this.push13);
+		write.println("push14: "+this.push14);
+		write.println("push15: "+this.push15);
+		write.println("push16: "+this.push16);
+		write.println("push17: "+this.push17);
+		write.println("push18: "+this.push18);
+		write.println("push19: "+this.push19);
+		write.println("push20: "+this.push20);
+		write.println("push21: "+this.push21);
+		write.println("push22: "+this.push22);
+		write.println("push23: "+this.push23);
+		write.println("push24: "+this.push24);
+		write.println("push25: "+this.push25);
+		write.println("push26: "+this.push26);
+		write.println("push27: "+this.push27);
+		write.println("push28: "+this.push28);
+		write.println("push29: "+this.push29);
+		write.println("push30: "+this.push30);
+		write.println("push31: "+this.push31);
+		write.println("push32: "+this.push32);
+		write.println("dup1: "+this.dup1);
+		write.println("dup2: "+this.dup2);
+		write.println("dup3: "+this.dup3);
+		write.println("dup4: "+this.dup4);
+		write.println("dup5: "+this.dup5);
+		write.println("dup6: "+this.dup6);
+		write.println("dup7: "+this.dup7);
+		write.println("dup8: "+this.dup8);
+		write.println("dup9: "+this.dup9);
+		write.println("dup10: "+this.dup10);
+		write.println("dup11: "+this.dup11);
+		write.println("dup12: "+this.dup12);
+		write.println("dup13: "+this.dup13);
+		write.println("dup14: "+this.dup14);
+		write.println("dup15: "+this.dup15);
+		write.println("dup16: "+this.dup16);
+		write.println("swap1: "+this.swap1);
+		write.println("swap2: "+this.swap2);
+		write.println("swap3: "+this.swap3);
+		write.println("swap4: "+this.swap4);
+		write.println("swap5: "+this.swap5);
+		write.println("swap6: "+this.swap6);
+		write.println("swap7: "+this.swap7);
+		write.println("swap8: "+this.swap8);
+		write.println("swap9: "+this.swap9);
+		write.println("swap10: "+this.swap10);
+		write.println("swap11: "+this.swap11);
+		write.println("swap12: "+this.swap12);
+		write.println("swap13: "+this.swap13);
+		write.println("swap14: "+this.swap14);
+		write.println("swap15: "+this.swap15);
+		write.println("swap16: "+this.swap16);
 		write.close();
     }
     
