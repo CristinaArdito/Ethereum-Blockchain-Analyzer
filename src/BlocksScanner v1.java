@@ -261,31 +261,6 @@ public class BlocksScanner {
         write.close();
     }
     
-    public boolean isVerified(String url) throws Exception {
-        boolean verified = false;
-        
-    	try {
-       	 	URL website = new URL(url);
-            URLConnection connection = website.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
-            connection.connect();
-            BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-           
-            String inputLine;
-
-            while ((inputLine = in.readLine()) != null) {
-               	if (inputLine.contains("Contract Source Code Verified") == true) {
-               		verified = true;
-               	}
-            }  
-            in.close();
-       	}
-       	catch(Exception e) {
-       		System.out.println("Errore nel contratto "+url.substring(29, url.lastIndexOf("#"))+". Impossibile recuperare la versione del compilatore.");
-       	}
-		return verified;
-    }
-    
     /**
      * Ottiene la versione del compilatore Solidity utilizzata e la memorizza su file
      * @param url - url pagine contenenti i contratti
@@ -324,7 +299,7 @@ public class BlocksScanner {
         write.close();
     	}
     	catch(Exception e) {
-    		System.out.println("Errore nel contratto "+url.substring(29, url.lastIndexOf("#"))+". Impossibile recuperare la versione del compilatore.");
+    		System.out.println("Errore getCompilerVersion().");
     	}
 		
     }
@@ -335,7 +310,7 @@ public class BlocksScanner {
      * @param url - url del contratto
      * @throws Exception
      */
-    public void getOpcode(String url, String filename) throws Exception {
+    public void getOpcode(String url) throws Exception {
    	 URL website = new URL(url);
    	 
    	 LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
@@ -376,9 +351,9 @@ public class BlocksScanner {
 	         Reader inputString = new StringReader(prova);
 	         BufferedReader in = new BufferedReader(inputString);
 	         
-	         FileOutputStream output = new FileOutputStream(filename, true);
-	         PrintStream write = new PrintStream(output);
-	         
+	         FileOutputStream output = new FileOutputStream("OpcodeBlockchain.txt", true);
+	 		 PrintStream write = new PrintStream(output);
+	 		 
 	         write.println("Contract address: " + url.substring(29, url.lastIndexOf("#")));
 	   		 String inputLine;
 	         Element app;
@@ -401,164 +376,24 @@ public class BlocksScanner {
 	        				write.println(inputLine);
 	        			}
 	        		}
-	         }
+	
+	         }  
 	         write.println();
 	         in.close();
 	         webClient.close();
 	         write.close();
        }
        catch (Exception e) {
-       	System.out.println("Errore nel contratto "+url.substring(29, url.lastIndexOf("#"))+". Impossibile recuperare gli Opcodes.");
+       	System.out.println("Errore nel contratto "+url+". Impossibile recuperare gli Opcodes.");
        }
    }
 
-    public void reset() {
-    	this.stop = 0;
-    	this.add = 0;
-    	this.mul = 0;
-    	this.sub = 0;
-    	this.div = 0;
-    	this.sdiv = 0;
-    	this.mod = 0;
-    	this.smod = 0;
-    	this.exp = 0;
-    	this.not = 0;
-    	this.if1 = 0;
-    	this.lt = 0;
-    	this.gt = 0;
-    	this.slt = 0;
-    	this.sgt = 0;
-    	this.eq = 0;
-    	this.iszero = 0;
-    	this.and = 0;
-    	this.or = 0;
-    	this.xor = 0;
-    	this.byte1 = 0;
-    	this.addmod = 0;
-    	this.mulmod = 0;
-    	this.signextend = 0;
-    	this.keccak256 = 0;
-    	this.sha3 = 0;
-    	this.jump = 0;
-    	this.jumpi = 0;
-    	this.jumpdest = 0;
-    	this.pop = 0;
-    	this.mload = 0;
-    	this.mstore = 0;
-    	this.mstore8 = 0;
-    	this.sload = 0;
-    	this.sstore = 0;
-    	this.msize = 0;
-    	this.gas = 0;
-    	this.address = 0;
-    	this.balance = 0;
-    	this.caller = 0;
-    	this.callvalue = 0;
-    	this.calldataload = 0;
-    	this.calldatasize = 0;
-    	this.calldatacopy = 0;
-    	this.codesize = 0;
-    	this.codecopy = 0;
-    	this.extcodesize = 0;
-    	this.extcodecopy = 0;
-    	this.returndatasize = 0;
-    	this.returndatacopy = 0;
-    	this.create = 0;
-    	this.create2 = 0;
-    	this.call = 0;
-    	this.callcode = 0;
-    	this.delegatecall = 0;
-    	this.staticcall = 0;
-    	this.return1 = 0;
-    	this.revert = 0;
-    	this.selfdestruct = 0;
-    	this.invalid = 0;
-    	this.log0 = 0;
-    	this.log1 = 0;
-    	this.log2 = 0;
-    	this.log3 = 0;
-    	this.log4 = 0;
-    	this.origin = 0;
-    	this.gasprice = 0;
-    	this.blockhash = 0;
-    	this.coinbase = 0;
-    	this.timestamp = 0;
-    	this.number = 0;
-    	this.difficulty = 0;
-    	this.gaslimit = 0;
-    	this.pc = 0;
-    	this.push1 = 0;
-    	this.push2 = 0;
-    	this.push3 = 0;
-    	this.push4 = 0;
-    	this.push5 = 0;
-    	this.push6 = 0;
-    	this.push7 = 0;
-    	this.push8 = 0;
-    	this.push9 = 0;
-    	this.push10 = 0;
-    	this.push11 = 0;
-    	this.push12 = 0;
-    	this.push13 = 0;
-    	this.push14 = 0;
-    	this.push15 = 0;
-    	this.push16 = 0;
-    	this.push17 = 0;
-    	this.push18 = 0;
-    	this.push19 = 0;
-    	this.push20 = 0;
-    	this.push21 = 0;
-    	this.push22 = 0;
-    	this.push23 = 0;
-    	this.push24 = 0;
-    	this.push25 = 0;
-    	this.push26 = 0;
-    	this.push27 = 0;
-    	this.push28 = 0;
-    	this.push29 = 0;
-    	this.push30 = 0;
-    	this.push31 = 0;
-    	this.push32 = 0;
-    	this.dup1 = 0;
-    	this.dup2 = 0;
-    	this.dup3 = 0;
-    	this.dup4 = 0;
-    	this.dup5 = 0;
-    	this.dup6 = 0;
-    	this.dup7 = 0;
-    	this.dup8 = 0;
-    	this.dup9 = 0;
-    	this.dup10 = 0;
-    	this.dup11 = 0;
-    	this.dup12 = 0;
-    	this.dup13 = 0;
-    	this.dup14 = 0;
-    	this.dup15 = 0;
-    	this.dup16 = 0;
-    	this.swap1 = 0;
-    	this.swap2 = 0;
-    	this.swap3 = 0;
-    	this.swap4 = 0;
-    	this.swap5 = 0;
-    	this.swap6 = 0;
-    	this.swap7 = 0;
-    	this.swap8 = 0;
-    	this.swap9 = 0;
-    	this.swap10 = 0;
-    	this.swap11 = 0;
-    	this.swap12 = 0;
-    	this.swap13 = 0;
-    	this.swap14 = 0;
-    	this.swap15 = 0;
-    	this.swap16 = 0;
-    }
-    
     /**
      * Effetua la statistica degli opcode dei contratti
      * @throws Exception
      */
-    public void statistics(String filename) throws Exception {
-    	File file = new File(filename);
+    public void statistics() throws Exception {
+    	File file = new File("OpcodeBlockchain.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	String line;
     	while ((line = br.readLine()) != null) {
@@ -975,7 +810,8 @@ public class BlocksScanner {
     		}
     		if(line.contains("SWAP16") == true) {
     			this.swap16++;
-    		} 		
+    		}
+    		
     	}
     	br.close();
     }
@@ -984,8 +820,8 @@ public class BlocksScanner {
      * Memorizza i risultati della statistica su file
      * @throws Exception
      */
-    public void writeResults(String filename) throws Exception {
-        FileOutputStream output = new FileOutputStream(filename, true);
+    public void writeResults() throws Exception {
+        FileOutputStream output = new FileOutputStream("BlockchainResults.txt", true);
 		PrintStream write = new PrintStream(output);
 		write.println("Opcode results: ");
 		write.println("add: "+ this.add);
@@ -1132,33 +968,28 @@ public class BlocksScanner {
     public static void main(String[] args) throws Exception {
     	BlocksScanner ss = new BlocksScanner();
     	// Ottiene il numero corrente di blocchi
-  /*  	int index = Integer.parseInt(getBlocksNumber());
+    	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Inizio scansione indirizzi contratti");
     	for(int i = index; i >= 0; i--) {    		
     		ss.getAddresses("http://etherscan.io/txs?block="+i);
     		TimeUnit.SECONDS.sleep(1);
-    	}*/
+    	}
     	// Ottiene gli opcode e la versione del compilatore
     	System.out.println("Inizio scansione Opcode & versione compilatore Solidity");
     	File file = new File("AddressesBlockchain.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	    String line;
-    	    while ((line = br.readLine()) != null) {    
-    	    	if(ss.isVerified("https://etherscan.io/address/"+line+"#code")) {
-	    	    	ss.getOpcode("https://etherscan.io/address/"+line+"#code", "OpcodesVerified.txt");
-	    	    	ss.getCompilerVersion("https://etherscan.io/address/"+line+"#code");
-    	    	}
-    	    	else ss.getOpcode("https://etherscan.io/address/"+line+"#code", "OpcodesNotVerified.txt");
+    	    while ((line = br.readLine()) != null) {    	    	
+    	    	ss.getOpcode("https://etherscan.io/address/"+line+"#code");
+    	    	ss.getCompilerVersion("https://etherscan.io/address/"+line+"#code");
     	    }
     	// Analizza gli opcode
-    	System.out.println("Inizio statistiche opcodes contratti verificati.");
-    	ss.statistics("OpcodesVerified.txt");
-    	ss.writeResults("OpcodesVerifiedResults.txt");
-    	ss.reset();
-    	System.out.println("Inizio statistiche opcodes contratti non verificati.");
-    	ss.statistics("OpcodesNotVerified.txt");
-    	ss.writeResults("OpcodesNotVerifiedResults.txt");
+    	System.out.println("Inizio statistiche");
+    	ss.statistics();
+    	// Memorizza i risultati 
+    	System.out.println("Scrittura risultati in corso");
+    	ss.writeResults();
     	br.close();
     }
 }
