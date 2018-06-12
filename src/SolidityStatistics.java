@@ -246,59 +246,64 @@ public class SolidityStatistics {
              }
          });
          
-         HtmlPage currentPage = webClient.getPage(website);
-    	 HtmlPage page;
-    	 String opcodeId = new String();
-         if(currentPage.getElementById("btnConvert3") != null) {
-        	 HtmlAnchor element = (HtmlAnchor) currentPage.getElementById("btnConvert3");
-        	 String clickAttr = element.getOnClickAttribute();
-	         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
-	         page =  (HtmlPage) scriptResult.getNewPage();
-	         opcodeId = "verifiedbytecode2";
-         }
-         else {
-        	 HtmlButton element = (HtmlButton) currentPage.getElementById("ContentPlaceHolder1_btnconvert222");
-        	 String clickAttr = element.getOnClickAttribute();
-	         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
-	         page = (HtmlPage) scriptResult.getNewPage();
-	         opcodeId = "dividcode";
-         }
-
-         String prova = page.asXml();
-         Reader inputString = new StringReader(prova);
-         BufferedReader in = new BufferedReader(inputString);
-         
-         FileOutputStream output = new FileOutputStream("Opcode.txt", true);
- 		 PrintStream write = new PrintStream(output);
- 		 
-         write.println("Contract address: " + url.substring(29, url.lastIndexOf("#")));
-   		 String inputLine;
-         Element app;
-         Document doc;
-         boolean flag = false;
-         int i = 0;
-        
-         while ((inputLine = in.readLine()) != null) {
-        		doc = Jsoup.parse(inputLine);
-        		if((app = doc.getElementById(opcodeId)) != null){
-        			flag = true;
-        			i = 0;
-        		}
-        		if(inputLine.contains("fa fa-database") == true || inputLine.contains("readContract") == true) {
-        			flag = false;
-        		}
-        		i++;
-        		if(flag == true && i > 1) {
-        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {
-        				write.println(inputLine);
-        			}
-        		}
-
-         }  
-         write.println();
-         in.close();
-         webClient.close();
-         write.close();
+        try {
+	         HtmlPage currentPage = webClient.getPage(website);
+	         HtmlPage page;
+	    	 String opcodeId = new String();
+	         if(currentPage.getElementById("btnConvert3") != null) {
+	        	 HtmlAnchor element = (HtmlAnchor) currentPage.getElementById("btnConvert3");
+	        	 String clickAttr = element.getOnClickAttribute();
+		         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
+		         page =  (HtmlPage) scriptResult.getNewPage();
+		         opcodeId = "verifiedbytecode2";
+	         }
+	         else {
+	        	 HtmlButton element = (HtmlButton) currentPage.getElementById("ContentPlaceHolder1_btnconvert222");
+	        	 String clickAttr = element.getOnClickAttribute();
+		         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
+		         page = (HtmlPage) scriptResult.getNewPage();
+		         opcodeId = "dividcode";
+	         }
+	
+	         String prova = page.asXml();
+	         Reader inputString = new StringReader(prova);
+	         BufferedReader in = new BufferedReader(inputString);
+	         
+	         FileOutputStream output = new FileOutputStream("Opcode.txt", true);
+	 		 PrintStream write = new PrintStream(output);
+	 		 
+	         write.println("Contract address: " + url.substring(29, url.lastIndexOf("#")));
+	   		 String inputLine;
+	         Element app;
+	         Document doc;
+	         boolean flag = false;
+	         int i = 0;
+	        
+	         while ((inputLine = in.readLine()) != null) {
+	        		doc = Jsoup.parse(inputLine);
+	        		if((app = doc.getElementById(opcodeId)) != null){
+	        			flag = true;
+	        			i = 0;
+	        		}
+	        		if(inputLine.contains("fa fa-database") == true || inputLine.contains("readContract") == true || inputLine.contains("fa fa-plus-square") == true) {
+	        			flag = false;
+	        		}
+	        		i++;
+	        		if(flag == true && i > 1) {
+	        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {
+	        				write.println(inputLine);
+	        			}
+	        		}
+	
+	         }  
+	         write.println();
+	         in.close();
+	         webClient.close();
+	         write.close();
+        }
+        catch (Exception e) {
+        	System.out.println("Errore nel contratto "+url+". Impossibile recuperare gli Opcodes.");
+        }
     }
 
     /**
@@ -889,16 +894,20 @@ public class SolidityStatistics {
     		}
     	}*/
     	// Ottiene gli opcode 
-    	/*File file = new File("Addresses.txt");
+    	File file = new File("Addresses.txt");
     	BufferedReader br = new BufferedReader(new FileReader(file));
     	    String line;
+    	    boolean flag = false;
     	    while ((line = br.readLine()) != null) {
-    	    	ss.getOpcode("https://etherscan.io/address/"+line+"#code");
-    	    }*/
+    	    	if(line.contains("0x7a055da1ff6fc1570bfbdbb1fecff4fb4987ab3c") == true) {
+    	    		flag = true;
+    	    	}
+    	    	if(flag == true) ss.getOpcode("https://etherscan.io/address/"+line+"#code");
+    	    }
     	// Analizza gli opcode
     	ss.statistics();
     	// Memorizza i risultati    	
     	ss.writeResults();
-    	//br.close();
+    	br.close();
     }
 }
