@@ -76,6 +76,7 @@ public class BlockchainParser {
 		v.add("0.4.22");
 		v.add("0.4.23");
 		v.add("0.4.24");
+		v.add("0.4.25");
 	}
 	
 	/**
@@ -358,6 +359,7 @@ public class BlockchainParser {
 		versions.put("INVALID", new HashMap<String, Integer>());
 		versions.put("SELFDESTRUCT", new HashMap<String, Integer>());	
 		
+		// Inizializza a 0 il counter per ogni versione
 		versions.forEach ((opcode, version) -> {
 			  Iterator<String> j = v.iterator();
 			  while(j.hasNext()) {
@@ -580,9 +582,15 @@ public class BlockchainParser {
 	        		}
 	        		i++;
 	        		if(flag == true && i > 1) {
-	        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {
-	        				if(inputLine.contains("PUSH")) opcode = inputLine.substring(24, inputLine.lastIndexOf(" "));
-	        				else opcode = inputLine;
+	        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {	        				
+	        				if(inputLine.contains("PUSH")) {
+	        					opcode = inputLine.substring(24, inputLine.lastIndexOf(" "));
+	        				}
+	        				else if(!inputLine.contains("Unknown Opcode")){	
+	        					if(inputLine.length() > 24)
+	        					opcode = inputLine.substring(24, inputLine.length());
+	        					
+	        				}
 	        				if(verified) {	        					
 	        					if(opcodes.containsKey(opcode)) {
 		        					int array[] = opcodes.get(opcode);
@@ -600,10 +608,12 @@ public class BlockchainParser {
 	        				if(versions.containsKey(opcode)) {
 		        				HashMap<String, Integer> map = versions.get(opcode);
 		        				if(version.contains("-")) version = version.substring(0, version.lastIndexOf("-"));
-		        				System.out.println(version);
-		        				int count = map.get(version);
-		        				map.replace(version, count++);
-		        				versions.replace(opcode, map);	  
+		        				if(map.containsKey(version)) {
+			        				int count = map.get(version);
+			        				count++;
+			        				map.replace(version, count);
+			        				versions.replace(opcode, map);	 
+		        				}
 	        				}
 	        			}
 	        		}
@@ -660,10 +670,18 @@ public class BlockchainParser {
     	bp.insertVersions();
     	bp.createVersionsMap();
 
-    	bp.getOpcode("https://etherscan.io/address/0x74fd51a98a4a1ecbef8cc43be801cce630e260bd#code");
-    	bp.getOpcode("https://etherscan.io/address/0xb8d8a92cafaf6c055bce8e53405d90be96d1a677#code");
-    	bp.writeOpcodesResults("a.txt");
-    	bp.writeVersionsResults("b.txt");
+    	int index = Integer.parseInt(getBlocksNumber());
+    	System.out.println("Blocco corrente: "+index);
+    	System.out.println("Scansione contratti in corso..");
+    	for(int i = index; i >= 0; i--) {    		
+    		String address = bp.getAddresses("http://etherscan.io/txs?block="+i);
+    		bp.getOpcode("https://etherscan.io/address/"+address+"#code");
+    		// Utilizzare solo in caso di http error 403
+    		//TimeUnit.SECONDS.sleep(1);
+    	}
+    	System.out.println("Memorizzazione su file dei risultati.");
+    	bp.writeOpcodesResults("OpcodesResults.txt");
+    	bp.writeVersionsResults("VersionsResults.txt");
     }
 }
 
