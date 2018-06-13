@@ -432,6 +432,7 @@ public class BlockchainParser {
             	i++;
             	if(i == 4 && flag == true) {
             		line = part.substring(15, 57);
+
             		i = 0;
             		flag=false;
             	}
@@ -560,7 +561,7 @@ public class BlockchainParser {
 	         String prova = page.asXml();
 	         Reader inputString = new StringReader(prova);
 	         BufferedReader in = new BufferedReader(inputString);
-	         
+
 	   		 String inputLine;
 	         Element app;
 	         Document doc;
@@ -587,7 +588,8 @@ public class BlockchainParser {
 	        				}
 	        				else if(!inputLine.contains("Unknown Opcode")){	
 	        					if(inputLine.length() > 24)
-	        					opcode = inputLine.substring(24, inputLine.length());	        					
+	        					opcode = inputLine.substring(24, inputLine.length());
+	        					
 	        				}
 	        				if(verified) {	        					
 	        					if(opcodes.containsKey(opcode)) {
@@ -667,6 +669,7 @@ public class BlockchainParser {
     	bp.createOpcodesMap();
     	bp.insertVersions();
     	bp.createVersionsMap();
+
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Scansione contratti in corso..");
