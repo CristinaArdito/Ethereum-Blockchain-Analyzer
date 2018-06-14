@@ -409,13 +409,14 @@ public class BlockchainParser {
 	 * @param url - url pagine contenenti i contratti
 	 * @throws Exception
 	 */
-    public String getAddresses(String url) throws Exception {
+    public ArrayList<String> getAddresses(String url) throws Exception {
         URL website = new URL(url);
         URLConnection connection = website.openConnection();
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
         connection.connect();
         BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
+        ArrayList<String> addresses = new ArrayList<String>();
         String[] splited = null;
         String inputLine;
     	boolean flag = false;
@@ -432,13 +433,14 @@ public class BlockchainParser {
             	i++;
             	if(i == 4 && flag == true) {
             		line = part.substring(15, 57);
+            		addresses.add(line);
             		i = 0;
             		flag=false;
             	}
             }
         }           
         in.close();
-        return line;
+        return addresses;
     }
     
     /**
@@ -539,6 +541,9 @@ public class BlockchainParser {
         });
         
        try {
+    	     /* Eseguo il codice javascript relativo all'evento onclick(),
+    	      * per accedere alla versione della pagina contenente gli opcodes
+    	      */
 	         HtmlPage currentPage = webClient.getPage(website);
 	         HtmlPage page;
 	    	 String opcodeId = new String();
@@ -566,10 +571,12 @@ public class BlockchainParser {
 	         Document doc;
 	         boolean flag = false;
 	         int i = 0;	         
-	         boolean verified = this.isVerified(url);
-	         String version = this.getCompilerVersion(url);
+	         int startIndex = 0;
 	         String opcode = new String();
 	         
+	         boolean verified = this.isVerified(url);
+	         String version = this.getCompilerVersion(url);
+	        
 	         while ((inputLine = in.readLine()) != null) {
 	        		doc = Jsoup.parse(inputLine);
 	        		if((app = doc.getElementById(opcodeId)) != null){
@@ -581,36 +588,56 @@ public class BlockchainParser {
 	        		}
 	        		i++;
 	        		if(flag == true && i > 1) {
-	        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {	        				
+	        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {	  
+	        				if(verified) startIndex = 24;
+	        				else startIndex = 22;
 	        				if(inputLine.contains("PUSH")) {
-	        					opcode = inputLine.substring(24, inputLine.lastIndexOf(" "));
+	        					opcode = inputLine.substring(startIndex, inputLine.lastIndexOf(" "));
 	        				}
 	        				else if(!inputLine.contains("Unknown Opcode")){	
-	        					if(inputLine.length() > 24)
-	        					opcode = inputLine.substring(24, inputLine.length());	        					
+	        					if(inputLine.length() > startIndex)
+	        					opcode = inputLine.substring(startIndex, inputLine.length());	        					
 	        				}
+	        				/* Se il contratto risulta verificato incremento il relativo counter */
 	        				if(verified) {	        					
 	        					if(opcodes.containsKey(opcode)) {
 		        					int array[] = opcodes.get(opcode);
 		        					array[1] += 1;
 		        					opcodes.replace(opcode, array);
 	        					}
-	        				}
+	        				}		/* Altrimenti incremento quello relativo ai non verificati */
 	        				else {
 	        					if(opcodes.containsKey(opcode)) {
 		        					int array[] = opcodes.get(opcode);
 		        					array[0] += 1;
 		        					opcodes.replace(opcode, array);
 	        					}
-	        				}
-	        				if(versions.containsKey(opcode)) {
-		        				HashMap<String, Integer> map = versions.get(opcode);
-		        				if(version.contains("-")) version = version.substring(0, version.lastIndexOf("-"));
-		        				if(map.containsKey(version)) {
-			        				int count = map.get(version);
-			        				count++;
-			        				map.replace(version, count);
-			        				versions.replace(opcode, map);	 
+	        				}	        				
+	        				if(!version.isEmpty()) {
+	        					/* Incremento il counter dell'opcode per la versione specificata */
+		        				if(versions.containsKey(opcode)) {
+			        				HashMap<String, Integer> map = versions.get(opcode);
+			        				if(version.contains("-")) version = version.substring(0, version.lastIndexOf("-"));
+			        				if(map.containsKey(version)) {
+				        				int count = map.get(version);
+				        				count++;
+				        				map.replace(version, count);
+				        				versions.replace(opcode, map);	 
+			        				}
+			        				/* Se il contratto è stato verificato ed è stato prodotto con un compilatore solidity incremento
+			        				 * il relativo counter
+			        				 */
+			        				if(verified && v.contains(version)) {
+			        					int array[] = opcodes.get(opcode);
+			        					array[2] += 1;
+			        					opcodes.replace(opcode, array);			        					
+			        				}
+			        				/* Altrimenti incremento il counter per contratti prodotti da altri linguaggi */
+			        				else if(verified && !v.contains(version)) {
+			        					int array[] = opcodes.get(opcode);
+			        					array[3] += 1;
+			        					opcodes.replace(opcode, array);				        					
+			        				}
 		        				}
 	        				}
 	        			}
@@ -664,16 +691,20 @@ public class BlockchainParser {
     
     public static void main(String[] args) throws Exception {
     	BlockchainParser bp = new BlockchainParser();
+    	ArrayList<String> addresses = new ArrayList<String>();
     	bp.createOpcodesMap();
     	bp.insertVersions();
     	bp.createVersionsMap();
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Scansione contratti in corso..");
-    	for(int i = index; i >= 0; i--) {    		
-    		String address = bp.getAddresses("http://etherscan.io/txs?block="+i);
-    		bp.getOpcode("https://etherscan.io/address/"+address+"#code");
-    		// Utilizzare solo in caso di http error 403
+    	for(int i = index; i >= index-10; i--) {    		
+    		addresses = bp.getAddresses("http://etherscan.io/txs?block="+i);
+    		Iterator<String> j = addresses.iterator();
+    		while(j.hasNext()) {
+    			bp.getOpcode("https://etherscan.io/address/"+j.next()+"#code");
+    		}
+    		// Decommentare solo in caso di http error 403
     		//TimeUnit.SECONDS.sleep(1);
     	}
     	System.out.println("Memorizzazione su file dei risultati.");
