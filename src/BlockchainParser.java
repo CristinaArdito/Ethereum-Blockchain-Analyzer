@@ -698,7 +698,7 @@ public class BlockchainParser {
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Scansione contratti in corso..");
-    	for(int i = index; i >= index-10; i--) {    		
+    	for(int i = index; i >= 0; i--) {    		
     		addresses = bp.getAddresses("http://etherscan.io/txs?block="+i);
     		Iterator<String> j = addresses.iterator();
     		while(j.hasNext()) {
