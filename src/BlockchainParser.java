@@ -660,9 +660,37 @@ public class BlockchainParser {
        	e.printStackTrace();
        }
    }
+    
+    /**
+     * Effettua periodicamente il backup dei dati su disco.
+     * @throws Exception
+     */
+    public void backup(int blockNumber) throws Exception {
+        FileOutputStream output = new FileOutputStream("Backup.txt");
+		PrintStream write = new PrintStream(output);    
+		
+		write.println("Ultimo blocco analizzato: "+blockNumber);
+		
+		write.println("Hashmap opcodes: ");
+		opcodes.forEach ((opcode, counter) -> {
+			  int array[] = opcodes.get(opcode);
+			  write.println("Opcode: "+opcode+" numerosità da non verificati: "+array[0]+" numerosità da verificati: "+array[1]+" numerosità da verificati con solidity: "+array[2]+" numerosità da verificati non da solidity: "+array[3]);
+		 });
+		write.println();
+		write.println("Hashmap versioni: ");		
+		versions.forEach ((opcode, version) -> {
+			  Iterator<String> j = v.iterator();
+			  while(j.hasNext()) {
+				  String app = j.next();
+				  int count = versions.get(opcode).get(app);
+				  write.println("Opcode: "+opcode+" versione: "+app+" numerosità utilizzo:"+count);
+			  }
+		 });
+		write.close();
+    }
 
     /**
-     * Memorizza i risultati della statistica degli opcodes su file
+     * Memorizza i risultati della statistica degli opcodes su file.
      * @throws Exception
      */
     public void writeOpcodesResults(String filename) throws Exception {
@@ -707,12 +735,13 @@ public class BlockchainParser {
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Scansione contratti in corso..");
-    	for(int i = index; i >= index-30; i--) {    		
+    	for(int i = index; i >= index-2; i--) {    		
     		addresses = bp.getAddresses("http://etherscan.io/txs?block="+i);
     		Iterator<String> j = addresses.iterator();
     		while(j.hasNext()) {
     			bp.getOpcode("https://etherscan.io/address/"+j.next()+"#code");
     		}
+    		bp.backup(i);
     		// Decommentare solo in caso di http error 403
     		//TimeUnit.SECONDS.sleep(1);
     	}
