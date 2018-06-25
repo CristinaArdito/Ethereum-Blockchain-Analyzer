@@ -523,16 +523,21 @@ public class BlockchainParser {
      * @throws Exception
      */
     public void getOpcode(String url) throws Exception {
-   	 URL website = new URL(url);
-   	 
-   	 LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
-   	 java.util.logging.Logger.getLogger("com.gargoylesoftware").setLevel(Level.OFF); 
-   	 java.util.logging.Logger.getLogger("org.apache.commons.httpclient").setLevel(Level.OFF);
-   	 
-   	 WebClient webClient = new WebClient();
-   	 webClient.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
-        webClient.getOptions().setJavaScriptEnabled(true);
+	   	URL website = new URL(url);
+	   	 
+	   	LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
+	   	java.util.logging.Logger.getLogger("com.gargoylesoftware").setLevel(Level.OFF); 
+	   	java.util.logging.Logger.getLogger("org.apache.commons.httpclient").setLevel(Level.OFF);
+	   	 
+	   	WebClient webClient = new WebClient();
+	   	webClient.addRequestHeader("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+	    webClient.getOptions().setJavaScriptEnabled(true);
+	    // Modifica il comporamento del client quando si verifica uno script-error
+	    webClient.getOptions().setThrowExceptionOnScriptError(false);
+	    // Specifica se può essere lanciata un'eccezione al verificarsi dell'evento failing status code
+	    webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
         webClient.waitForBackgroundJavaScript(10000);
+        webClient.getCache().setMaxSize(0);
         
         webClient.setAlertHandler(new AlertHandler() {
             public void handleAlert(Page page, String message) {
@@ -545,7 +550,7 @@ public class BlockchainParser {
     	      * per accedere alla versione della pagina contenente gli opcodes
     	      */
 	         HtmlPage currentPage = webClient.getPage(website);
-	         HtmlPage page;
+	         HtmlPage page = null;
 	    	 String opcodeId = new String();
 	         if(currentPage.getElementById("btnConvert3") != null) {
 	        	 HtmlAnchor element = (HtmlAnchor) currentPage.getElementById("btnConvert3");
@@ -555,95 +560,99 @@ public class BlockchainParser {
 		         opcodeId = "verifiedbytecode2";
 	         }
 	         else {
-	        	 HtmlButton element = (HtmlButton) currentPage.getElementById("ContentPlaceHolder1_btnconvert222");
-	        	 String clickAttr = element.getOnClickAttribute();
-		         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
-		         page = (HtmlPage) scriptResult.getNewPage();
-		         opcodeId = "dividcode";
+	        	 if(currentPage.getElementById("ContentPlaceHolder1_btnconvert222") != null) {
+		        	 HtmlButton element = (HtmlButton) currentPage.getElementById("ContentPlaceHolder1_btnconvert222");
+		        	 String clickAttr = element.getOnClickAttribute();
+			         ScriptResult scriptResult = currentPage.executeJavaScript(clickAttr);
+			         page = (HtmlPage) scriptResult.getNewPage();
+			         opcodeId = "dividcode";
+	        	 }
 	         }
-	
-	         String prova = page.asXml();
-	         Reader inputString = new StringReader(prova);
-	         BufferedReader in = new BufferedReader(inputString);
 	         
-	   		 String inputLine;
-	         Element app;
-	         Document doc;
-	         boolean flag = false;
-	         int i = 0;	         
-	         int startIndex = 0;
-	         String opcode = new String();
-	         
-	         boolean verified = this.isVerified(url);
-	         String version = this.getCompilerVersion(url);
-	        
-	         while ((inputLine = in.readLine()) != null) {
-	        		doc = Jsoup.parse(inputLine);
-	        		if((app = doc.getElementById(opcodeId)) != null){
-	        			flag = true;
-	        			i = 0;
-	        		}
-	        		if(inputLine.contains("fa fa-database") == true || inputLine.contains("readContract") == true || inputLine.contains("fa fa-plus-square") == true) {
-	        			flag = false;
-	        		}
-	        		i++;
-	        		if(flag == true && i > 1) {
-	        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {	  
-	        				if(verified) startIndex = 24;
-	        				else startIndex = 22;
-	        				if(inputLine.contains("PUSH")) {
-	        					opcode = inputLine.substring(startIndex, inputLine.lastIndexOf(" "));
-	        				}
-	        				else if(!inputLine.contains("Unknown Opcode")){	
-	        					if(inputLine.length() > startIndex)
-	        					opcode = inputLine.substring(startIndex, inputLine.length());	        					
-	        				}
-	        				/* Se il contratto risulta verificato incremento il relativo counter */
-	        				if(verified) {	        					
-	        					if(opcodes.containsKey(opcode)) {
-		        					int array[] = opcodes.get(opcode);
-		        					array[1] += 1;
-		        					opcodes.replace(opcode, array);
-	        					}
-	        				}		/* Altrimenti incremento quello relativo ai non verificati */
-	        				else {
-	        					if(opcodes.containsKey(opcode)) {
-		        					int array[] = opcodes.get(opcode);
-		        					array[0] += 1;
-		        					opcodes.replace(opcode, array);
-	        					}
-	        				}	        				
-	        				if(!version.isEmpty()) {
-	        					/* Incremento il counter dell'opcode per la versione specificata */
-		        				if(versions.containsKey(opcode)) {
-			        				HashMap<String, Integer> map = versions.get(opcode);
-			        				if(version.contains("-")) version = version.substring(0, version.lastIndexOf("-"));
-			        				if(map.containsKey(version)) {
-				        				int count = map.get(version);
-				        				count++;
-				        				map.replace(version, count);
-				        				versions.replace(opcode, map);	 
-			        				}
-			        				/* Se il contratto è stato verificato ed è stato prodotto con un compilatore solidity incremento
-			        				 * il relativo counter
-			        				 */
-			        				if(verified && v.contains(version)) {
+	         if(page != null) {
+		         String prova = page.asXml();
+		         Reader inputString = new StringReader(prova);
+		         BufferedReader in = new BufferedReader(inputString);
+		         
+		   		 String inputLine;
+		         Element app;
+		         Document doc;
+		         boolean flag = false;
+		         int i = 0;	         
+		         int startIndex = 0;
+		         String opcode = new String();
+		         
+		         boolean verified = this.isVerified(url);
+		         String version = this.getCompilerVersion(url);
+		        
+		         while ((inputLine = in.readLine()) != null) {
+		        		doc = Jsoup.parse(inputLine);
+		        		if((app = doc.getElementById(opcodeId)) != null){
+		        			flag = true;
+		        			i = 0;
+		        		}
+		        		if(inputLine.contains("fa fa-database") == true || inputLine.contains("readContract") == true || inputLine.contains("fa fa-plus-square") == true) {
+		        			flag = false;
+		        		}
+		        		i++;
+		        		if(flag == true && i > 1) {
+		        			if(inputLine.contains("<br/>") == false && inputLine.contains("</div>") == false && inputLine.contains("</pre>") == false && inputLine.contains("wordwrap") == false) {	  
+		        				if(verified) startIndex = 24;
+		        				else startIndex = 22;
+		        				if(inputLine.contains("PUSH")) {
+		        					opcode = inputLine.substring(startIndex, inputLine.lastIndexOf(" "));
+		        				}
+		        				else if(!inputLine.contains("Unknown Opcode")){	
+		        					if(inputLine.length() > startIndex)
+		        					opcode = inputLine.substring(startIndex, inputLine.length());	        					
+		        				}
+		        				/* Se il contratto risulta verificato incremento il relativo counter */
+		        				if(verified) {	        					
+		        					if(opcodes.containsKey(opcode)) {
 			        					int array[] = opcodes.get(opcode);
-			        					array[2] += 1;
-			        					opcodes.replace(opcode, array);			        					
-			        				}
-			        				/* Altrimenti incremento il counter per contratti prodotti da altri linguaggi */
-			        				else if(verified && !v.contains(version)) {
+			        					array[1] += 1;
+			        					opcodes.replace(opcode, array);
+		        					}
+		        				}		/* Altrimenti incremento quello relativo ai non verificati */
+		        				else {
+		        					if(opcodes.containsKey(opcode)) {
 			        					int array[] = opcodes.get(opcode);
-			        					array[3] += 1;
-			        					opcodes.replace(opcode, array);				        					
+			        					array[0] += 1;
+			        					opcodes.replace(opcode, array);
+		        					}
+		        				}	        				
+		        				if(!version.isEmpty()) {
+		        					/* Incremento il counter dell'opcode per la versione specificata */
+			        				if(versions.containsKey(opcode)) {
+				        				HashMap<String, Integer> map = versions.get(opcode);
+				        				if(version.contains("-")) version = version.substring(0, version.lastIndexOf("-"));
+				        				if(map.containsKey(version)) {
+					        				int count = map.get(version);
+					        				count++;
+					        				map.replace(version, count);
+					        				versions.replace(opcode, map);	 
+				        				}
+				        				/* Se il contratto è stato verificato ed è stato prodotto con un compilatore solidity incremento
+				        				 * il relativo counter
+				        				 */
+				        				if(verified && v.contains(version)) {
+				        					int array[] = opcodes.get(opcode);
+				        					array[2] += 1;
+				        					opcodes.replace(opcode, array);			        					
+				        				}
+				        				/* Altrimenti incremento il counter per contratti prodotti da altri linguaggi */
+				        				else if(verified && !v.contains(version)) {
+				        					int array[] = opcodes.get(opcode);
+				        					array[3] += 1;
+				        					opcodes.replace(opcode, array);				        					
+				        				}
 			        				}
 		        				}
-	        				}
-	        			}
-	        		}
-	         }
-	         in.close();
+		        			}
+		        		}
+		         }
+		         in.close();
+		         }
 	         webClient.close();
        }
        catch (Exception e) {
@@ -698,7 +707,7 @@ public class BlockchainParser {
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Scansione contratti in corso..");
-    	for(int i = index; i >= 0; i--) {    		
+    	for(int i = index; i >= index-30; i--) {    		
     		addresses = bp.getAddresses("http://etherscan.io/txs?block="+i);
     		Iterator<String> j = addresses.iterator();
     		while(j.hasNext()) {
