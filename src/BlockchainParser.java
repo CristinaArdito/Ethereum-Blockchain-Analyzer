@@ -122,6 +122,8 @@ public class BlockchainParser {
 		opcodes.put("GASPRICE", new int[] {0,0,0,0});
 		opcodes.put("EXTCODESIZE", new int[] {0,0,0,0});
 		opcodes.put("EXTCODECOPY", new int[] {0,0,0,0});
+		opcodes.put("RETURNDATASIZE", new int[] {0,0,0,0});
+		opcodes.put("RETURNDATACOPY", new int[] {0,0,0,0});		
 		opcodes.put("BLOCKHASH", new int[] {0,0,0,0});
 		opcodes.put("COINBASE", new int[] {0,0,0,0});
 		opcodes.put("TIMESTAMP", new int[] {0,0,0,0});
@@ -262,6 +264,8 @@ public class BlockchainParser {
 		versions.put("GASPRICE", new HashMap<String, Integer>());
 		versions.put("EXTCODESIZE", new HashMap<String, Integer>());
 		versions.put("EXTCODECOPY", new HashMap<String, Integer>());
+		versions.put("RETURNDATASIZE", new HashMap<String, Integer>());
+		versions.put("RETURNDATACOPY", new HashMap<String, Integer>());		
 		versions.put("BLOCKHASH", new HashMap<String, Integer>());
 		versions.put("COINBASE", new HashMap<String, Integer>());
 		versions.put("TIMESTAMP", new HashMap<String, Integer>());
@@ -683,7 +687,7 @@ public class BlockchainParser {
 			  while(j.hasNext()) {
 				  String app = j.next();
 				  int count = versions.get(opcode).get(app);
-				  write.println("Opcode: "+opcode+" versione: "+app+" numerosità utilizzo:"+count);
+				  write.println("Opcode: "+opcode+" versione: "+app+" numerosità utilizzo: "+count);
 			  }
 		 });
 		write.close();
@@ -719,7 +723,7 @@ public class BlockchainParser {
 			  while(j.hasNext()) {
 				  String app = j.next();
 				  int count = versions.get(opcode).get(app);
-				  write.println("Opcode: "+opcode+" versione: "+app+" numerosità utilizzo:"+count);
+				  write.println("Opcode: "+opcode+" versione: "+app+" numerosità utilizzo: "+count);
 			  }
 		 });
 		write.close();
