@@ -409,6 +409,29 @@ public class BlockchainParser {
 	}
 	
 	/**
+	 * Ottiene il numero totale delle pagine contenenti i contratti
+	 * @return line - numero delle pagine 
+	 * @throws Exception
+	 */
+	public String getPagesBlocks(String url) throws Exception {
+		URL website = new URL(url);
+        URLConnection connection = website.openConnection();
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+        connection.connect();
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        
+        String inputLine;
+        String line = null;
+        
+        while ((inputLine = in.readLine()) != null) {
+            	if (inputLine.contains("A total of") == true) {
+            		line = inputLine.substring(17, inputLine.indexOf("transactions")-1);
+            	}
+        }
+        return line;
+	}
+	
+	/**
 	 * Ottiene gli indirizzi dei contratti e li memorizza su file
 	 * @param url - url pagine contenenti i contratti
 	 * @throws Exception
@@ -733,22 +756,40 @@ public class BlockchainParser {
     public static void main(String[] args) throws Exception {
     	BlockchainParser bp = new BlockchainParser();
     	ArrayList<String> addresses = new ArrayList<String>();
+    	ArrayList<String> addressesApp = new ArrayList<String>();
+    	int pages = 0;
     	bp.createOpcodesMap();
     	bp.insertVersions();
     	bp.createVersionsMap();
     	int index = Integer.parseInt(getBlocksNumber());
     	System.out.println("Blocco corrente: "+index);
     	System.out.println("Scansione contratti in corso..");
-    	for(int i = index; i >= index-2; i--) {    		
-    		addresses = bp.getAddresses("http://etherscan.io/txs?block="+i);
+    	long start = System.currentTimeMillis();
+    	for(int i = 5856236; i >= 5856236-1; i--) {    
+    		pages = Integer.parseInt(bp.getPagesBlocks("http://etherscan.io/txs?block="+i));
+    		if(pages > 50) {
+	    		int rest = pages % 50;
+	    		if(rest > 0) pages = (pages / 50)+1;
+	    		else if(rest == 0) pages = pages / 50;
+    		}
+    		else pages = 1;
+    		for(int z = 1; z <= pages; z++) {
+    			addressesApp = bp.getAddresses("http://etherscan.io/txs?block="+i+"&p="+z);
+    			Iterator<String> w = addressesApp.iterator();
+    			while(w.hasNext()) {
+    				addresses.add(w.next());
+    			}
+    		}
     		Iterator<String> j = addresses.iterator();
     		while(j.hasNext()) {
     			bp.getOpcode("https://etherscan.io/address/"+j.next()+"#code");
     		}
     		bp.backup(i);
+    		addresses.clear();
     		// Decommentare solo in caso di http error 403
     		//TimeUnit.SECONDS.sleep(1);
     	}
+    	System.out.println((System.currentTimeMillis() - start));
     	System.out.println("Memorizzazione su file dei risultati.");
     	bp.writeOpcodesResults("OpcodesResults.txt");
     	bp.writeVersionsResults("VersionsResults.txt");
