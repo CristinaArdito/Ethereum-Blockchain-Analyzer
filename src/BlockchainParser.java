@@ -95,139 +95,141 @@ public class BlockchainParser {
 	 * verificati non da solidity"
 	 */
 	public void createOpcodesMap() {
-		opcodes.put("STOP", new int[] { 0, 0, 0, 0 });
-		opcodes.put("ADD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MUL", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SUB", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DIV", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SDIV", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MOD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SMOD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("ADDMOD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MULMOD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("EXP", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SIGNEXTEND", new int[] { 0, 0, 0, 0 });
-		opcodes.put("LT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("GT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SLT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SGT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("EQ", new int[] { 0, 0, 0, 0 });
-		opcodes.put("ISZERO", new int[] { 0, 0, 0, 0 });
-		opcodes.put("AND", new int[] { 0, 0, 0, 0 });
-		opcodes.put("OR", new int[] { 0, 0, 0, 0 });
-		opcodes.put("XOR", new int[] { 0, 0, 0, 0 });
-		opcodes.put("NOT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("BYTE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SHA3", new int[] { 0, 0, 0, 0 });
-		opcodes.put("ADDRESS", new int[] { 0, 0, 0, 0 });
-		opcodes.put("BALANCE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("ORIGIN", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALLER", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALLVALUE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALLDATALOAD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALLDATASIZE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALLDATACOPY", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CODESIZE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CODECOPY", new int[] { 0, 0, 0, 0 });
-		opcodes.put("GASPRICE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("EXTCODESIZE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("EXTCODECOPY", new int[] { 0, 0, 0, 0 });
-		opcodes.put("BLOCKHASH", new int[] { 0, 0, 0, 0 });
-		opcodes.put("COINBASE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("TIMESTAMP", new int[] { 0, 0, 0, 0 });
-		opcodes.put("NUMBER", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DIFFICULTY", new int[] { 0, 0, 0, 0 });
-		opcodes.put("GASLIMIT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("POP", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MLOAD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MSTORE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MSTORE8", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SLOAD", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SSTORE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("JUMP", new int[] { 0, 0, 0, 0 });
-		opcodes.put("JUMPI", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PC", new int[] { 0, 0, 0, 0 });
-		opcodes.put("MSIZE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("GAS", new int[] { 0, 0, 0, 0 });
-		opcodes.put("JUMPDEST", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH1", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH2", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH3", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH4", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH5", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH6", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH7", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH8", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH9", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH10", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH11", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH12", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH13", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH14", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH15", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH16", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH17", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH18", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH19", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH20", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH21", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH22", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH23", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH24", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH25", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH26", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH27", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH28", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH29", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH30", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH31", new int[] { 0, 0, 0, 0 });
-		opcodes.put("PUSH32", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP1", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP2", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP3", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP4", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP5", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP6", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP7", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP8", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP9", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP10", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP11", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP12", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP13", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP14", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP15", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DUP16", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP1", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP2", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP3", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP4", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP5", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP6", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP7", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP8", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP9", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP10", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP11", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP12", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP13", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP14", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP15", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SWAP16", new int[] { 0, 0, 0, 0 });
-		opcodes.put("LOG0", new int[] { 0, 0, 0, 0 });
-		opcodes.put("LOG1", new int[] { 0, 0, 0, 0 });
-		opcodes.put("LOG2", new int[] { 0, 0, 0, 0 });
-		opcodes.put("LOG3", new int[] { 0, 0, 0, 0 });
-		opcodes.put("LOG4", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CREATE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALL", new int[] { 0, 0, 0, 0 });
-		opcodes.put("CALLCODE", new int[] { 0, 0, 0, 0 });
-		opcodes.put("RETURN", new int[] { 0, 0, 0, 0 });
-		opcodes.put("DELEGATECALL", new int[] { 0, 0, 0, 0 });
-		opcodes.put("STATICCAL", new int[] { 0, 0, 0, 0 });
-		opcodes.put("REVERT", new int[] { 0, 0, 0, 0 });
-		opcodes.put("INVALID", new int[] { 0, 0, 0, 0 });
-		opcodes.put("SELFDESTRUCT", new int[] { 0, 0, 0, 0 });
+		opcodes.put("STOP", new int[] {0,0,0,0});
+		opcodes.put("ADD", new int[] {0,0,0,0});
+		opcodes.put("MUL", new int[] {0,0,0,0});
+		opcodes.put("SUB", new int[] {0,0,0,0});
+		opcodes.put("DIV", new int[] {0,0,0,0});
+		opcodes.put("SDIV", new int[] {0,0,0,0});
+		opcodes.put("MOD", new int[] {0,0,0,0});
+		opcodes.put("SMOD", new int[] {0,0,0,0});
+		opcodes.put("ADDMOD", new int[] {0,0,0,0});
+		opcodes.put("MULMOD", new int[] {0,0,0,0});
+		opcodes.put("EXP", new int[] {0,0,0,0});
+		opcodes.put("SIGNEXTEND", new int[] {0,0,0,0});
+		opcodes.put("LT", new int[] {0,0,0,0});
+		opcodes.put("GT", new int[] {0,0,0,0});
+		opcodes.put("SLT", new int[] {0,0,0,0});
+		opcodes.put("SGT", new int[] {0,0,0,0});
+		opcodes.put("EQ", new int[] {0,0,0,0});
+		opcodes.put("ISZERO", new int[] {0,0,0,0});
+		opcodes.put("AND", new int[] {0,0,0,0});
+		opcodes.put("OR", new int[] {0,0,0,0});
+		opcodes.put("XOR", new int[] {0,0,0,0});
+		opcodes.put("NOT", new int[] {0,0,0,0});
+		opcodes.put("BYTE", new int[] {0,0,0,0});
+		opcodes.put("SHA3", new int[] {0,0,0,0});
+		opcodes.put("ADDRESS", new int[] {0,0,0,0});
+		opcodes.put("BALANCE", new int[] {0,0,0,0});
+		opcodes.put("ORIGIN", new int[] {0,0,0,0});
+		opcodes.put("CALLER", new int[] {0,0,0,0});
+		opcodes.put("CALLVALUE", new int[] {0,0,0,0});
+		opcodes.put("CALLDATALOAD", new int[] {0,0,0,0});
+		opcodes.put("CALLDATASIZE", new int[] {0,0,0,0});
+		opcodes.put("CALLDATACOPY", new int[] {0,0,0,0});
+		opcodes.put("CODESIZE", new int[] {0,0,0,0});
+		opcodes.put("CODECOPY", new int[] {0,0,0,0});
+		opcodes.put("GASPRICE", new int[] {0,0,0,0});
+		opcodes.put("EXTCODESIZE", new int[] {0,0,0,0});
+		opcodes.put("EXTCODECOPY", new int[] {0,0,0,0});
+		opcodes.put("RETURNDATASIZE", new int[] {0,0,0,0});
+		opcodes.put("RETURNDATACOPY", new int[] {0,0,0,0});		
+		opcodes.put("BLOCKHASH", new int[] {0,0,0,0});
+		opcodes.put("COINBASE", new int[] {0,0,0,0});
+		opcodes.put("TIMESTAMP", new int[] {0,0,0,0});
+		opcodes.put("NUMBER", new int[] {0,0,0,0});
+		opcodes.put("DIFFICULTY", new int[] {0,0,0,0});
+		opcodes.put("GASLIMIT", new int[] {0,0,0,0});
+		opcodes.put("POP", new int[] {0,0,0,0});
+		opcodes.put("MLOAD", new int[] {0,0,0,0});
+		opcodes.put("MSTORE", new int[] {0,0,0,0});
+		opcodes.put("MSTORE8", new int[] {0,0,0,0});
+		opcodes.put("SLOAD", new int[] {0,0,0,0});
+		opcodes.put("SSTORE", new int[] {0,0,0,0});
+		opcodes.put("JUMP", new int[] {0,0,0,0});
+		opcodes.put("JUMPI", new int[] {0,0,0,0});
+		opcodes.put("PC", new int[] {0,0,0,0});
+		opcodes.put("MSIZE", new int[] {0,0,0,0});
+		opcodes.put("GAS", new int[] {0,0,0,0});
+		opcodes.put("JUMPDEST", new int[] {0,0,0,0});
+		opcodes.put("PUSH1", new int[] {0,0,0,0});
+		opcodes.put("PUSH2", new int[] {0,0,0,0});
+		opcodes.put("PUSH3", new int[] {0,0,0,0});
+		opcodes.put("PUSH4", new int[] {0,0,0,0});
+		opcodes.put("PUSH5", new int[] {0,0,0,0});
+		opcodes.put("PUSH6", new int[] {0,0,0,0});
+		opcodes.put("PUSH7", new int[] {0,0,0,0});
+		opcodes.put("PUSH8", new int[] {0,0,0,0});
+		opcodes.put("PUSH9", new int[] {0,0,0,0});
+		opcodes.put("PUSH10", new int[] {0,0,0,0});
+		opcodes.put("PUSH11", new int[] {0,0,0,0});
+		opcodes.put("PUSH12", new int[] {0,0,0,0});
+		opcodes.put("PUSH13", new int[] {0,0,0,0});
+		opcodes.put("PUSH14", new int[] {0,0,0,0});
+		opcodes.put("PUSH15", new int[] {0,0,0,0});
+		opcodes.put("PUSH16", new int[] {0,0,0,0});
+		opcodes.put("PUSH17", new int[] {0,0,0,0});
+		opcodes.put("PUSH18", new int[] {0,0,0,0});
+		opcodes.put("PUSH19", new int[] {0,0,0,0});
+		opcodes.put("PUSH20", new int[] {0,0,0,0});
+		opcodes.put("PUSH21", new int[] {0,0,0,0});
+		opcodes.put("PUSH22", new int[] {0,0,0,0});
+		opcodes.put("PUSH23", new int[] {0,0,0,0});
+		opcodes.put("PUSH24", new int[] {0,0,0,0});
+		opcodes.put("PUSH25", new int[] {0,0,0,0});
+		opcodes.put("PUSH26", new int[] {0,0,0,0});
+		opcodes.put("PUSH27", new int[] {0,0,0,0});
+		opcodes.put("PUSH28", new int[] {0,0,0,0});
+		opcodes.put("PUSH29", new int[] {0,0,0,0});
+		opcodes.put("PUSH30", new int[] {0,0,0,0});
+		opcodes.put("PUSH31", new int[] {0,0,0,0});
+		opcodes.put("PUSH32", new int[] {0,0,0,0});
+		opcodes.put("DUP1", new int[] {0,0,0,0});
+		opcodes.put("DUP2", new int[] {0,0,0,0});
+		opcodes.put("DUP3", new int[] {0,0,0,0});
+		opcodes.put("DUP4", new int[] {0,0,0,0});
+		opcodes.put("DUP5", new int[] {0,0,0,0});
+		opcodes.put("DUP6", new int[] {0,0,0,0});
+		opcodes.put("DUP7", new int[] {0,0,0,0});
+		opcodes.put("DUP8", new int[] {0,0,0,0});
+		opcodes.put("DUP9", new int[] {0,0,0,0});
+		opcodes.put("DUP10", new int[] {0,0,0,0});
+		opcodes.put("DUP11", new int[] {0,0,0,0});
+		opcodes.put("DUP12", new int[] {0,0,0,0});
+		opcodes.put("DUP13", new int[] {0,0,0,0});
+		opcodes.put("DUP14", new int[] {0,0,0,0});
+		opcodes.put("DUP15", new int[] {0,0,0,0});
+		opcodes.put("DUP16", new int[] {0,0,0,0});
+		opcodes.put("SWAP1", new int[] {0,0,0,0});
+		opcodes.put("SWAP2", new int[] {0,0,0,0});
+		opcodes.put("SWAP3", new int[] {0,0,0,0});
+		opcodes.put("SWAP4", new int[] {0,0,0,0});
+		opcodes.put("SWAP5", new int[] {0,0,0,0});
+		opcodes.put("SWAP6", new int[] {0,0,0,0});
+		opcodes.put("SWAP7", new int[] {0,0,0,0});
+		opcodes.put("SWAP8", new int[] {0,0,0,0});
+		opcodes.put("SWAP9", new int[] {0,0,0,0});
+		opcodes.put("SWAP10", new int[] {0,0,0,0});
+		opcodes.put("SWAP11", new int[] {0,0,0,0});
+		opcodes.put("SWAP12", new int[] {0,0,0,0});
+		opcodes.put("SWAP13", new int[] {0,0,0,0});
+		opcodes.put("SWAP14", new int[] {0,0,0,0});
+		opcodes.put("SWAP15", new int[] {0,0,0,0});
+		opcodes.put("SWAP16", new int[] {0,0,0,0});
+		opcodes.put("LOG0", new int[] {0,0,0,0});
+		opcodes.put("LOG1", new int[] {0,0,0,0});
+		opcodes.put("LOG2", new int[] {0,0,0,0});
+		opcodes.put("LOG3", new int[] {0,0,0,0});
+		opcodes.put("LOG4", new int[] {0,0,0,0});
+		opcodes.put("CREATE", new int[] {0,0,0,0});
+		opcodes.put("CALL", new int[] {0,0,0,0});
+		opcodes.put("CALLCODE", new int[] {0,0,0,0});
+		opcodes.put("RETURN", new int[] {0,0,0,0});
+		opcodes.put("DELEGATECALL", new int[] {0,0,0,0});
+		opcodes.put("STATICCAL", new int[] {0,0,0,0});
+		opcodes.put("REVERT", new int[] {0,0,0,0});
+		opcodes.put("INVALID", new int[] {0,0,0,0});
+		opcodes.put("SELFDESTRUCT", new int[] {0,0,0,0});		
 	}
 
 	/**
@@ -272,6 +274,8 @@ public class BlockchainParser {
 		versions.put("GASPRICE", new HashMap<String, Integer>());
 		versions.put("EXTCODESIZE", new HashMap<String, Integer>());
 		versions.put("EXTCODECOPY", new HashMap<String, Integer>());
+		versions.put("RETURNDATASIZE", new HashMap<String, Integer>());
+		versions.put("RETURNDATACOPY", new HashMap<String, Integer>());		
 		versions.put("BLOCKHASH", new HashMap<String, Integer>());
 		versions.put("COINBASE", new HashMap<String, Integer>());
 		versions.put("TIMESTAMP", new HashMap<String, Integer>());
@@ -422,6 +426,29 @@ public class BlockchainParser {
 		return addresses;
 	}
 
+	/**
+	 * Ottiene il numero totale delle pagine contenenti i contratti
+	 * @return line - numero delle pagine 
+	 * @throws Exception
+	 */
+	public String getPagesBlocks(String url) throws Exception {
+		URL website = new URL(url);
+        URLConnection connection = website.openConnection();
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+        connection.connect();
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        
+        String inputLine;
+        String line = null;
+        
+        while ((inputLine = in.readLine()) != null) {
+            	if (inputLine.contains("A total of") == true) {
+            		line = inputLine.substring(17, inputLine.indexOf("transactions")-1);
+            	}
+        }
+        return line;
+	}
+	
 	/**
 	 * 
 	 * @param blockNumber
@@ -723,15 +750,15 @@ public class BlockchainParser {
 					+ " numerosità da verificati non da solidity: " + array[3]);
 		});
 		write.println();
-		write.println("Hashmap versioni: ");
-		versions.forEach((opcode, version) -> {
-			Iterator<String> j = v.iterator();
-			while (j.hasNext()) {
-				String app = j.next();
-				int count = versions.get(opcode).get(app);
-				write.println("Opcode: " + opcode + " versione: " + app + " numerosità utilizzo:" + count);
-			}
-		});
+		write.println("Hashmap versioni: ");		
+		versions.forEach ((opcode, version) -> {
+			  Iterator<String> j = v.iterator();
+			  while(j.hasNext()) {
+				  String app = j.next();
+				  int count = versions.get(opcode).get(app);
+				  write.println("Opcode: "+opcode+" versione: "+app+" numerosità utilizzo: "+count);
+			  }
+		 });
 		write.close();
 	}
 
@@ -785,6 +812,8 @@ public class BlockchainParser {
 	public static void main(String[] args) throws Exception {
 		BlockchainParser bp = new BlockchainParser();
 		ArrayList<String> addresses = new ArrayList<String>();
+    		ArrayList<String> addressesApp = new ArrayList<String>();
+    		int pages = 0;
 		bp.createOpcodesMap();
 		bp.insertVersions();
 		bp.createVersionsMap();
@@ -795,9 +824,20 @@ public class BlockchainParser {
 		System.out.println("Scansione contratti in corso..");
 		for (int i = bp.maxBlock; i >= bp.minBlock; i--) {
 			if (bp.driver.equalsIgnoreCase("INTERNET")) {
-				System.out.println("Getting addresses....");
-				addresses = bp.getAddresses("http://etherscan.io/txs?block=" + i);
-				System.out.println("... got " + addresses.size() + "addresses.");
+				pages = Integer.parseInt(bp.getPagesBlocks("http://etherscan.io/txs?block="+i));
+				if(pages > 50) {
+					int rest = pages % 50;
+					if(rest > 0) pages = (pages / 50)+1;
+					else if(rest == 0) pages = pages / 50;
+				}
+				else pages = 1;
+				for(int z = 1; z <= pages; z++) {
+					addressesApp = bp.getAddresses("http://etherscan.io/txs?block="+i+"&p="+z);
+					Iterator<String> w = addressesApp.iterator();
+					while(w.hasNext()) {
+						addresses.add(w.next());
+					}
+				}
 				Iterator<String> j = addresses.iterator();
 				while (j.hasNext()) {
 					String s = j.next();
@@ -817,6 +857,7 @@ public class BlockchainParser {
 			}
 
 			bp.backup(i);
+    			addresses.clear();
 			// Decommentare solo in caso di http error 403
 			// TimeUnit.SECONDS.sleep(1);
 		}
