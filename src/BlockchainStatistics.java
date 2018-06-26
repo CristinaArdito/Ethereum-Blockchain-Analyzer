@@ -7,7 +7,7 @@ import org.jsoup.select.Elements;
 
 import java.io.*;
 
-public class BlockchainStatistics2 {
+public class BlockchainStatistics {
 
 	// Lista di OpCode : http://solidity.readthedocs.io/en/develop/assembly.html
 	private int add;
