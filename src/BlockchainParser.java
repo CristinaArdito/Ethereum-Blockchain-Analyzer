@@ -673,7 +673,6 @@ public class BlockchainParser {
 									int array[] = opcodes.get(opcode);
 									array[1] += 1;
 									opcodes.replace(opcode, array);
-									System.out.println("SHA3 verified " + array[1]);
 								}
 							} /*
 								 * Altrimenti incremento quello relativo ai non
