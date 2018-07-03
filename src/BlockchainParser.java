@@ -29,9 +29,9 @@ public class BlockchainParser {
 	HashMap<String, HashMap<String, Integer>> versions;
 	ArrayList<String> v = new ArrayList<String>();
 	public final String driver = "INTERNET";// {"MONGODB", "INTERNET"}
-	public final String path = "C:\\Users\\letti\\Desktop\\";
-	public final int maxBlock = 5782389;// Utils.getBlocksNumber(driver);
-	public final int minBlock = 5782389;
+	public final String path = "/home/matteo/src/blockchainResults/";
+	public final int maxBlock = 5782236;// Utils.getBlocksNumber(driver);
+	public final int minBlock = 5282236;
 
 	/**
 	 * 
@@ -92,8 +92,8 @@ public class BlockchainParser {
 
 	/**
 	 * Crea l'Hashmap per ogni opcode e inizializza i valori a zero. I quattro
-	 * valori rappresentano: "numerosità da non verificati", "numerosità da
-	 * verificati", "numerosità da verificati con solidity", "numerosità da
+	 * valori rappresentano: "numerosita da non verificati", "numerosita da
+	 * verificati", "numerosita da verificati con solidity", "numerosita da
 	 * verificati non da solidity"
 	 */
 	public void createOpcodesMap() {
@@ -236,7 +236,7 @@ public class BlockchainParser {
 
 	/**
 	 * Crea una HashMap in cui per ogni versione del compilatore solidity si
-	 * memorizza la numerosità di ogni opcode
+	 * memorizza la numerosita di ogni opcode
 	 */
 	public void createVersionsMap() {
 		versions.put("STOP", new HashMap<String, Integer>());
@@ -446,7 +446,12 @@ public class BlockchainParser {
 
 		while ((inputLine = in.readLine()) != null) {
 			if (inputLine.contains("A total of") == true) {
-				line = inputLine.substring(17, inputLine.indexOf("transactions") - 1);
+				try{
+					line = inputLine.substring(17, inputLine.indexOf("transactions") - 1);
+				} catch (IndexOutOfBoundsException e){
+					e.printStackTrace();
+					line = inputLine.substring(17, inputLine.indexOf("transaction") - 1);
+				}
 			}
 		}
 		return line;
@@ -485,7 +490,7 @@ public class BlockchainParser {
 	}
 
 	/**
-	 * Verifica se il contratto corrispondente all'indirizzo specificato è stato
+	 * Verifica se il contratto corrispondente all'indirizzo specificato e stato
 	 * verificato.
 	 * 
 	 * @param url
@@ -588,7 +593,7 @@ public class BlockchainParser {
 		// Modifica il comporamento del client quando si verifica uno
 		// script-error
 		webClient.getOptions().setThrowExceptionOnScriptError(false);
-		// Specifica se può essere lanciata un'eccezione al verificarsi
+		// Specifica se puo essere lanciata un'eccezione al verificarsi
 		// dell'evento failing status code
 		webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
 		webClient.waitForBackgroundJavaScript(10000);
@@ -701,7 +706,7 @@ public class BlockchainParser {
 										versions.replace(opcode, map);
 									}
 									/*
-									 * Se il contratto è stato verificato ed è
+									 * Se il contratto e stato verificato ed e
 									 * stato prodotto con un compilatore
 									 * solidity incremento il relativo counter
 									 */
@@ -740,7 +745,7 @@ public class BlockchainParser {
 	 * @throws Exception
 	 */
 	public void backup(int blockNumber) throws Exception {
-		FileOutputStream output = new FileOutputStream("Backup.txt");
+		FileOutputStream output = new FileOutputStream(this.path + "Backup.txt");
 		PrintStream write = new PrintStream(output);
 
 		write.println("Ultimo blocco analizzato: " + blockNumber);
@@ -748,9 +753,9 @@ public class BlockchainParser {
 		write.println("Hashmap opcodes: ");
 		opcodes.forEach((opcode, counter) -> {
 			int array[] = opcodes.get(opcode);
-			write.println("Opcode: " + opcode + " numerosità da non verificati: " + array[0]
-					+ " numerosità da verificati: " + array[1] + " numerosità da verificati con solidity: " + array[2]
-					+ " numerosità da verificati non da solidity: " + array[3]);
+			write.println("Opcode: " + opcode + " numerosita da non verificati: " + array[0]
+					+ " numerosita da verificati: " + array[1] + " numerosita da verificati con solidity: " + array[2]
+					+ " numerosita da verificati non da solidity: " + array[3]);
 		});
 		write.println();
 		write.println("Hashmap versioni: ");
@@ -759,7 +764,7 @@ public class BlockchainParser {
 			while (j.hasNext()) {
 				String app = j.next();
 				int count = versions.get(opcode).get(app);
-				write.println("Opcode: " + opcode + " versione: " + app + " numerosità utilizzo: " + count);
+				write.println("Opcode: " + opcode + " versione: " + app + " numerosita utilizzo: " + count);
 			}
 		});
 		write.close();
@@ -777,9 +782,9 @@ public class BlockchainParser {
 
 		opcodes.forEach((opcode, counter) -> {
 			int array[] = opcodes.get(opcode);
-			write.println("Opcode: " + opcode + " numerosità da non verificati: " + array[0]
-					+ " numerosità da verificati: " + array[1] + " numerosità da verificati con solidity: " + array[2]
-					+ " numerosità da verificati non da solidity: " + array[3]);
+			write.println("Opcode: " + opcode + " numerosita da non verificati: " + array[0]
+					+ " numerosita da verificati: " + array[1] + " numerosita da verificati con solidity: " + array[2]
+					+ " numerosita da verificati non da solidity: " + array[3]);
 		});
 		write.close();
 	}
@@ -800,7 +805,7 @@ public class BlockchainParser {
 			while (j.hasNext()) {
 				String app = j.next();
 				int count = versions.get(opcode).get(app);
-				write.println("Opcode: " + opcode + " versione: " + app + " numerosità utilizzo:" + count);
+				write.println("Opcode: " + opcode + " versione: " + app + " numerosita utilizzo:" + count);
 			}
 		});
 		write.close();
