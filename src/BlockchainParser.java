@@ -29,9 +29,9 @@ public class BlockchainParser {
 	HashMap<String, HashMap<String, Integer>> versions;
 	ArrayList<String> v = new ArrayList<String>();
 	public final String driver = "INTERNET";// {"MONGODB", "INTERNET"}
-	public final String path = "/home/matteo/src/blockchainResults/";
-	public final int maxBlock = 5782236;// Utils.getBlocksNumber(driver);
-	public final int minBlock = 5282236;
+	public final String path = "blockchainResults/";
+	public final int maxBlock = 4277266;// Utils.getBlocksNumber(driver);
+	public final int minBlock = 3778480;
 
 	/**
 	 * 
@@ -393,37 +393,43 @@ public class BlockchainParser {
 	 * @throws Exception
 	 */
 	public HashSet<String> getAddresses(String url) throws Exception {
-		URL website = new URL(url);
-		URLConnection connection = website.openConnection();
-		connection.setRequestProperty("User-Agent",
-				"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
-		connection.connect();
-		BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
 		HashSet<String> addresses = new HashSet<String>();
-		String[] splited = null;
-		String inputLine;
-		boolean flag = false;
-		int i = 0;
-		String line = new String();
+		try {
+			URL website = new URL(url);
+			URLConnection connection = website.openConnection();
+			connection.setRequestProperty("User-Agent",
+					"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+			connection.connect();
+			BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
-		while ((inputLine = in.readLine()) != null) {
-			splited = inputLine.split("\\s+");
-			for (String part : splited) {
-				if (part.contains("title='Contract'") == true) {
-					flag = true;
-					i = 0;
-				}
-				i++;
-				if (i == 4 && flag == true) {
-					line = part.substring(15, 57);
-					addresses.add(line);
-					i = 0;
-					flag = false;
+			String[] splited = null;
+			String inputLine;
+			boolean flag = false;
+			int i = 0;
+			String line = new String();
+
+			while ((inputLine = in.readLine()) != null) {
+				splited = inputLine.split("\\s+");
+				for (String part : splited) {
+					if (part.contains("title='Contract'") == true) {
+						flag = true;
+						i = 0;
+					}
+					i++;
+					if (i == 4 && flag == true) {
+						line = part.substring(15, 57);
+						addresses.add(line);
+						i = 0;
+						flag = false;
+					}
 				}
 			}
+			in.close();
+		} catch(IOException e){
+			e.printStackTrace();
+			return addresses;
 		}
-		in.close();
 		return addresses;
 	}
 
@@ -434,27 +440,33 @@ public class BlockchainParser {
 	 * @throws Exception
 	 */
 	public String getPagesBlocks(String url) throws Exception {
-		URL website = new URL(url);
-		URLConnection connection = website.openConnection();
-		connection.setRequestProperty("User-Agent",
-				"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
-		connection.connect();
-		BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
-		String inputLine;
 		String line = null;
+		try {
+			URL website = new URL(url);
+			URLConnection connection = website.openConnection();
+			connection.setRequestProperty("User-Agent",
+					"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11");
+			connection.connect();
+			BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
-		while ((inputLine = in.readLine()) != null) {
-			if (inputLine.contains("A total of") == true) {
-				try{
-					line = inputLine.substring(17, inputLine.indexOf("transactions") - 1);
-				} catch (IndexOutOfBoundsException e){
-					e.printStackTrace();
-					line = inputLine.substring(17, inputLine.indexOf("transaction") - 1);
+			String inputLine;
+
+			while ((inputLine = in.readLine()) != null) {
+				if (inputLine.contains("A total of") == true) {
+					try{
+						line = inputLine.substring(17, inputLine.indexOf("transactions") - 1);
+					} catch (IndexOutOfBoundsException e){
+						e.printStackTrace();
+						line = inputLine.substring(17, inputLine.indexOf("transaction") - 1);
+					}
 				}
 			}
+		} catch(IOException e){
+			e.printStackTrace();
+			return line != null ? line : "0";
 		}
-		return line;
+		return line != null ? line : "0";
 	}
 
 	/**
